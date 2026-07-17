@@ -1,0 +1,120 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile.dev
+    container_name: crm-api
+    working_dir: /workspace/apps/api
+    volumes:
+      - ./apps/api:/workspace/apps/api
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+    environment:
+      APP_ENV: development
+      HTTP_ADDRESS: :8080
+      DATABASE_URL: postgres://crm:crm_password@crm-db:5432/crm?sslmode=disable
+      OIDC_ISSUER_URL: http://keycloak:8080/realms/crm
+      OIDC_PUBLIC_ISSUER_URL: http://localhost:8081/realms/crm
+    ports:
+      - "8080:8080"
+    depends_on:
+      crm-db:
+        condition: service_healthy
+    networks:
+      - crm-network
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.dev
+    container_name: crm-web
+    working_dir: /workspace/apps/web
+    volumes:
+      - ./apps/web:/workspace/apps/web
+      - web-node-modules:/workspace/apps/web/node_modules
+      - web-next-cache:/workspace/apps/web/.next
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      API_URL: http://api:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    networks:
+      - crm-network
+
+  crm-db:
+    image: postgres:17-alpine
+    container_name: crm-db
+    environment:
+      POSTGRES_DB: crm
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: crm_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - crm-db-data:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U crm -d crm
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - crm-network
+
+  keycloak-db:
+    image: postgres:17-alpine
+    container_name: crm-keycloak-db
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak_password
+    volumes:
+      - keycloak-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U keycloak -d keycloak
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - crm-network
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7
+    container_name: crm-keycloak
+    command:
+      - start-dev
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak_password
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin_password
+    ports:
+      - "8081:8080"
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    volumes:
+      - ./infrastructure/keycloak/realm:/opt/keycloak/data/import
+    networks:
+      - crm-network
+
+volumes:
+  crm-db-data:
+  keycloak-db-data:
+  go-mod-cache:
+  go-build-cache:
+  web-node-modules:
+  web-next-cache:
+
+networks:
+  crm-network:
+    driver: bridge

@@ -1,0 +1,16 @@
+.git
+.github
+
+**/.env
+**/.env.*
+
+**/node_modules
+**/.next
+**/coverage
+
+**/tmp
+**/bin
+**/*.log
+
+.DS_Store
+Thumbs.db

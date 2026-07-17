@@ -1,0 +1,9 @@
+FROM node:24-alpine
+
+WORKDIR /workspace/apps/web
+
+COPY apps/web/package.json apps/web/package-lock.json ./
+
+RUN npm ci
+
+CMD ["npm", "run", "dev", "--", "-H", "0.0.0.0"]
