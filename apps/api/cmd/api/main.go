@@ -44,13 +44,27 @@ func run() error {
 			DockerKeycloakAddress: cfg.OIDCDockerKeycloakAddress,
 		},
 	)
+
 	if err != nil {
 		return err
 	}
-
+	loginTransactionStore := auth.NewMemoryLoginTransactionStore()
+	authHandler, err := auth.NewHandler(
+		oidcClient,
+		loginTransactionStore,
+		auth.HandlerConfig{
+			FrontendURL:             cfg.FrontendURL,
+			LoginTransactionTTL:     10 * time.Minute,
+			DefaultLoginDestination: "/dashboard",
+		},
+	)
+	if err != nil {
+		return err
+	}
 	appServer := server.New(
 		cfg.HTTPAddress,
 		oidcClient,
+		authHandler,
 	)
 
 	httpServer := appServer.HTTPServer()

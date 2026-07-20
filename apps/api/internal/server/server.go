@@ -9,22 +9,30 @@ import (
 )
 
 type Server struct {
-	httpServer *http.Server
-	oidcClient *auth.OIDCClient
+	httpServer  *http.Server
+	oidcClient  *auth.OIDCClient
+	authHandler *auth.Handler
 }
 
 func New(
 	address string,
 	oidcClient *auth.OIDCClient,
+	authHandler *auth.Handler,
 ) *Server {
 	mux := http.NewServeMux()
 
 	server := &Server{
-		oidcClient: oidcClient,
+		oidcClient:  oidcClient,
+		authHandler: authHandler,
 	}
 
 	mux.HandleFunc("GET /health", server.health)
 	mux.HandleFunc("GET /health/auth", server.authHealth)
+
+	mux.HandleFunc(
+		"GET /auth/login",
+		server.authHandler.Login,
+	)
 
 	server.httpServer = &http.Server{
 		Addr:              address,
