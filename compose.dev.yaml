@@ -15,6 +15,12 @@ services:
 
         DATABASE_URL: postgres://crm:crm_password@crm-db:5432/crm?sslmode=disable
 
+        REDIS_ADDRESS: redis:6379
+        REDIS_PASSWORD: ""
+        REDIS_DATABASE: "0"
+        REDIS_KEY_PREFIX: crm:development
+
+
         OIDC_ISSUER_URL: http://localhost:8081/realms/crm
         OIDC_CLIENT_ID: crm-backend
         OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
@@ -37,7 +43,6 @@ services:
       - crm-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
   web:
     build:
       context: .
@@ -125,6 +130,30 @@ services:
     networks:
       - crm-network
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: crm-redis
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - crm-network
+
 volumes:
   crm-db-data:
   keycloak-db-data:
@@ -132,6 +161,7 @@ volumes:
   go-build-cache:
   web-node-modules:
   web-next-cache:
+  redis-data:
 
 networks:
   crm-network:

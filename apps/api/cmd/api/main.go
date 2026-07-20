@@ -12,6 +12,7 @@ import (
 
 	"github.com/rajipupreti/crm-platform/apps/api/internal/auth"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/config"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/redisclient"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/server"
 )
 
@@ -48,7 +49,36 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	loginTransactionStore := auth.NewMemoryLoginTransactionStore()
+
+	redisClient, err := redisclient.New(
+		startupContext,
+		redisclient.Config{
+			Address:  cfg.RedisAddress,
+			Password: cfg.RedisPassword,
+			Database: cfg.RedisDatabase,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := redisClient.Close(); err != nil {
+			log.Printf(
+				"close Redis client: %v",
+				err,
+			)
+		}
+	}()
+
+	loginTransactionStore, err :=
+		auth.NewRedisLoginTransactionStore(
+			redisClient,
+			cfg.RedisKeyPrefix,
+		)
+	if err != nil {
+		return err
+	}
+
 	authHandler, err := auth.NewHandler(
 		oidcClient,
 		loginTransactionStore,
