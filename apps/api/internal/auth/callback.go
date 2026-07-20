@@ -9,8 +9,10 @@ import (
 	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/rajipupreti/crm-platform/apps/api/internal/httpresponse"
 	"golang.org/x/oauth2"
+
+	"github.com/rajipupreti/crm-platform/apps/api/internal/httpresponse"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/user"
 )
 
 func (h *Handler) Callback(
@@ -123,10 +125,55 @@ func (h *Handler) Callback(
 		return
 	}
 
+	crmUser, err :=
+		h.identitySynchronizer.SynchronizeIdentity(
+			r.Context(),
+			user.Identity{
+				Provider:       "keycloak",
+				ProviderUserID: identity.Subject,
+				Email:          identity.Email,
+				EmailVerified:  identity.EmailVerified,
+				FirstName:      identity.GivenName,
+				LastName:       identity.FamilyName,
+				DisplayName:    identity.Name,
+			},
+		)
+	if err != nil {
+		log.Printf(
+			"synchronize authenticated CRM user: %v",
+			err,
+		)
+
+		status := http.StatusInternalServerError
+		code := "user_synchronization_failed"
+		message := "could not prepare authenticated user"
+
+		if errors.Is(err, user.ErrSuspended) {
+			status = http.StatusForbidden
+			code = "user_suspended"
+			message = "user access is suspended"
+		}
+
+		if errors.Is(err, user.ErrInvalidIdentity) {
+			status = http.StatusUnauthorized
+			code = "invalid_identity"
+			message = "authenticated identity is not valid"
+		}
+
+		httpresponse.Error(
+			w,
+			status,
+			code,
+			message,
+		)
+		return
+	}
+
 	httpresponse.JSON(
 		w,
 		http.StatusOK,
 		AuthenticatedIdentityResponse{
+			User:     crmUser,
 			Identity: identity.Response(),
 			ReturnTo: transaction.ReturnTo,
 		},

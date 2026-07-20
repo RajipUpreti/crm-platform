@@ -17,6 +17,8 @@ type Handler struct {
 	oidcClient       *OIDCClient
 	transactionStore LoginTransactionStore
 
+	identitySynchronizer IdentitySynchronizer
+
 	frontendURL             *url.URL
 	loginTransactionTTL     time.Duration
 	defaultLoginDestination string
@@ -26,6 +28,7 @@ type Handler struct {
 func NewHandler(
 	oidcClient *OIDCClient,
 	transactionStore LoginTransactionStore,
+	identitySynchronizer IdentitySynchronizer,
 	cfg HandlerConfig,
 ) (*Handler, error) {
 	if oidcClient == nil {
@@ -38,6 +41,11 @@ func NewHandler(
 		)
 	}
 
+	if identitySynchronizer == nil {
+		return nil, fmt.Errorf(
+			"identity synchronizer is required",
+		)
+	}
 	frontendURL, err := url.Parse(cfg.FrontendURL)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -72,9 +80,9 @@ func NewHandler(
 	}
 
 	return &Handler{
-		oidcClient:       oidcClient,
-		transactionStore: transactionStore,
-
+		oidcClient:              oidcClient,
+		transactionStore:        transactionStore,
+		identitySynchronizer:    identitySynchronizer,
 		frontendURL:             frontendURL,
 		loginTransactionTTL:     transactionTTL,
 		defaultLoginDestination: defaultDestination,

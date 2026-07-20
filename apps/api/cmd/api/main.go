@@ -15,6 +15,7 @@ import (
 	"github.com/rajipupreti/crm-platform/apps/api/internal/database"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/redisclient"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/server"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/user"
 )
 
 func main() {
@@ -52,6 +53,18 @@ func run() error {
 	}
 
 	defer postgresPool.Close()
+
+	userRepository, err :=
+		user.NewPostgresRepository(postgresPool)
+	if err != nil {
+		return err
+	}
+
+	userService, err :=
+		user.NewService(userRepository)
+	if err != nil {
+		return err
+	}
 
 	oidcClient, err := auth.NewOIDCClient(
 		startupContext,
@@ -100,6 +113,7 @@ func run() error {
 	authHandler, err := auth.NewHandler(
 		oidcClient,
 		loginTransactionStore,
+		userService,
 		auth.HandlerConfig{
 			FrontendURL:             cfg.FrontendURL,
 			LoginTransactionTTL:     10 * time.Minute,

@@ -11,22 +11,22 @@ const (
 )
 
 type User struct {
-	ID string
+	ID string `json:"id"`
 
-	IdentityProvider       string
-	IdentityProviderUserID string
+	IdentityProvider       string `json:"-"`
+	IdentityProviderUserID string `json:"-"`
 
-	Email         string
-	EmailVerified bool
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"emailVerified"`
 
-	FirstName string
-	LastName  string
-	Name      string
+	FirstName   string `json:"firstName,omitempty"`
+	LastName    string `json:"lastName,omitempty"`
+	DisplayName string `json:"displayName,omitempty"`
 
-	Status Status
+	Status Status `json:"status"`
 
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type Identity struct {
@@ -36,7 +36,7 @@ type Identity struct {
 	Email         string
 	EmailVerified bool
 
-	FirstName string
-	LastName  string
-	Name      string
+	FirstName   string
+	LastName    string
+	DisplayName string
 }

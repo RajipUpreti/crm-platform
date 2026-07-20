@@ -85,7 +85,24 @@ services:
       retries: 10
     networks:
       - crm-network
-
+  migrate:
+    image: migrate/migrate:v4.18.3
+    container_name: crm-migrate
+    profiles:
+      - tools
+    volumes:
+      - ./apps/api/migrations:/migrations:ro
+    networks:
+      - crm-network
+    depends_on:
+      crm-db:
+        condition: service_healthy
+    entrypoint:
+      - migrate
+    command:
+      - -path=/migrations
+      - -database=postgres://crm:crm_password@crm-db:5432/crm?sslmode=disable
+      - version
   keycloak-db:
     image: postgres:17-alpine
     container_name: crm-keycloak-db

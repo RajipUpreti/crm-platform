@@ -3,6 +3,8 @@ package auth
 import (
 	"fmt"
 	"strings"
+
+	"github.com/rajipupreti/crm-platform/apps/api/internal/user"
 )
 
 type IdentityClaims struct {
@@ -15,6 +17,7 @@ type IdentityClaims struct {
 	PreferredUsername string `json:"preferred_username"`
 }
 type AuthenticatedIdentityResponse struct {
+	User     user.User             `json:"user"`
 	Identity AuthenticatedIdentity `json:"identity"`
 	ReturnTo string                `json:"returnTo"`
 }

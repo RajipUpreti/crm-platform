@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -28,22 +29,10 @@ func (s *Service) SynchronizeIdentity(
 	ctx context.Context,
 	identity Identity,
 ) (User, error) {
-	identity.Provider = strings.TrimSpace(
-		identity.Provider,
-	)
+	identity = normalizeIdentity(identity)
 
-	identity.ProviderUserID = strings.TrimSpace(
-		identity.ProviderUserID,
-	)
-
-	identity.Email = strings.ToLower(
-		strings.TrimSpace(identity.Email),
-	)
-
-	if identity.Provider == "" ||
-		identity.ProviderUserID == "" ||
-		identity.Email == "" {
-		return User{}, ErrInvalidIdentity
+	if err := validateIdentity(identity); err != nil {
+		return User{}, err
 	}
 
 	storedUser, err :=
@@ -58,9 +47,110 @@ func (s *Service) SynchronizeIdentity(
 		)
 	}
 
-	if storedUser.Status == StatusSuspended {
+	switch storedUser.Status {
+	case StatusActive:
+		return storedUser, nil
+
+	case StatusSuspended:
 		return User{}, ErrSuspended
+
+	case StatusDeleted:
+		return User{}, ErrNotFound
+
+	default:
+		return User{}, fmt.Errorf(
+			"unsupported user status %q",
+			storedUser.Status,
+		)
+	}
+}
+
+func (s *Service) FindByID(
+	ctx context.Context,
+	id string,
+) (User, error) {
+	id = strings.TrimSpace(id)
+
+	if id == "" {
+		return User{}, ErrNotFound
+	}
+
+	storedUser, err :=
+		s.repository.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return User{}, ErrNotFound
+		}
+
+		return User{}, fmt.Errorf(
+			"find user: %w",
+			err,
+		)
 	}
 
 	return storedUser, nil
+}
+
+func normalizeIdentity(
+	identity Identity,
+) Identity {
+	identity.Provider = strings.ToLower(
+		strings.TrimSpace(identity.Provider),
+	)
+
+	identity.ProviderUserID = strings.TrimSpace(
+		identity.ProviderUserID,
+	)
+
+	identity.Email = strings.ToLower(
+		strings.TrimSpace(identity.Email),
+	)
+
+	identity.FirstName = strings.TrimSpace(
+		identity.FirstName,
+	)
+
+	identity.LastName = strings.TrimSpace(
+		identity.LastName,
+	)
+
+	identity.DisplayName = strings.TrimSpace(
+		identity.DisplayName,
+	)
+
+	return identity
+}
+
+func validateIdentity(
+	identity Identity,
+) error {
+	if identity.Provider == "" {
+		return fmt.Errorf(
+			"%w: provider is required",
+			ErrInvalidIdentity,
+		)
+	}
+
+	if identity.ProviderUserID == "" {
+		return fmt.Errorf(
+			"%w: provider user ID is required",
+			ErrInvalidIdentity,
+		)
+	}
+
+	if identity.Email == "" {
+		return fmt.Errorf(
+			"%w: email is required",
+			ErrInvalidIdentity,
+		)
+	}
+
+	if !identity.EmailVerified {
+		return fmt.Errorf(
+			"%w: verified email is required",
+			ErrInvalidIdentity,
+		)
+	}
+
+	return nil
 }
