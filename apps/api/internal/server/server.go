@@ -1,11 +1,11 @@
 package server
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/rajipupreti/crm-platform/apps/api/internal/auth"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/httpresponse"
 )
 
 type Server struct {
@@ -19,19 +19,31 @@ func New(
 	oidcClient *auth.OIDCClient,
 	authHandler *auth.Handler,
 ) *Server {
-	mux := http.NewServeMux()
-
 	server := &Server{
 		oidcClient:  oidcClient,
 		authHandler: authHandler,
 	}
 
-	mux.HandleFunc("GET /health", server.health)
-	mux.HandleFunc("GET /health/auth", server.authHealth)
+	mux := http.NewServeMux()
+
+	mux.HandleFunc(
+		"GET /health",
+		server.health,
+	)
+
+	mux.HandleFunc(
+		"GET /health/auth",
+		server.authHealth,
+	)
 
 	mux.HandleFunc(
 		"GET /auth/login",
 		server.authHandler.Login,
+	)
+
+	mux.HandleFunc(
+		"GET /auth/callback",
+		server.authHandler.Callback,
 	)
 
 	server.httpServer = &http.Server{
@@ -54,7 +66,7 @@ func (s *Server) health(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	writeJSON(
+	httpresponse.JSON(
 		w,
 		http.StatusOK,
 		map[string]string{
@@ -67,7 +79,7 @@ func (s *Server) authHealth(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-	writeJSON(
+	httpresponse.JSON(
 		w,
 		http.StatusOK,
 		map[string]string{
@@ -77,17 +89,4 @@ func (s *Server) authHealth(
 			"redirectUrl": s.oidcClient.OAuth2Config.RedirectURL,
 		},
 	)
-}
-
-func writeJSON(
-	w http.ResponseWriter,
-	status int,
-	value any,
-) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-
-	if err := json.NewEncoder(w).Encode(value); err != nil {
-		return
-	}
 }
