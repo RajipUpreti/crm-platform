@@ -1,0 +1,102 @@
+{
+  "realm": "crm",
+  "enabled": true,
+  "displayName": "CRM",
+
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+
+  "roles": {
+    "realm": [
+      {
+        "name": "platform-admin",
+        "description": "CRM platform administrator"
+      },
+      {
+        "name": "platform-user",
+        "description": "Standard CRM platform user"
+      }
+    ]
+  },
+
+  "clients": [
+    {
+      "clientId": "crm-backend",
+      "name": "CRM Go Backend",
+      "enabled": true,
+
+      "protocol": "openid-connect",
+
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "authorizationServicesEnabled": false,
+
+      "rootUrl": "http://localhost:8080",
+      "baseUrl": "http://localhost:3000",
+
+      "redirectUris": [
+        "http://localhost:8080/auth/callback"
+      ],
+
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3000/*",
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ],
+
+  "groups": [
+    {
+      "name": "platform-administrators",
+      "realmRoles": [
+        "platform-admin"
+      ]
+    },
+    {
+      "name": "platform-users",
+      "realmRoles": [
+        "platform-user"
+      ]
+    }
+  ],
+
+  "users": [
+    {
+      "username": "developer",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "developer@example.com",
+      "firstName": "Local",
+      "lastName": "Developer",
+
+      "credentials": [
+        {
+          "type": "password",
+          "value": "development_password",
+          "temporary": false
+        }
+      ],
+
+      "realmRoles": [
+        "platform-user"
+      ],
+
+      "groups": [
+        "/platform-users"
+      ]
+    }
+  ]
+}
