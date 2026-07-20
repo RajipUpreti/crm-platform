@@ -12,6 +12,7 @@ import (
 
 	"github.com/rajipupreti/crm-platform/apps/api/internal/auth"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/config"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/database"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/redisclient"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/server"
 )
@@ -34,6 +35,23 @@ func run() error {
 		20*time.Second,
 	)
 	defer startupCancel()
+
+	postgresPool, err :=
+		database.OpenPostgres(
+			startupContext,
+			database.PostgresConfig{
+				URL:             cfg.DatabaseURL,
+				MaxConnections:  10,
+				MinConnections:  1,
+				MaxConnLifetime: 30 * time.Minute,
+				MaxConnIdleTime: 5 * time.Minute,
+			},
+		)
+	if err != nil {
+		return err
+	}
+
+	defer postgresPool.Close()
 
 	oidcClient, err := auth.NewOIDCClient(
 		startupContext,
