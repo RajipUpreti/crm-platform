@@ -6,15 +6,6 @@ import (
 	"net/http"
 )
 
-type ErrorResponse struct {
-	Error ErrorBody `json:"error"`
-}
-
-type ErrorBody struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
 func JSON(
 	w http.ResponseWriter,
 	status int,
@@ -45,7 +36,7 @@ func Error(
 		w,
 		status,
 		ErrorResponse{
-			Error: ErrorBody{
+			Error: ErrorDetail{
 				Code:    code,
 				Message: message,
 			},

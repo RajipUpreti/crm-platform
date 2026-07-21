@@ -178,6 +178,27 @@ services:
     networks:
       - crm-network
 
+  swagger:
+    image: golang:alpine
+    working_dir: /code/apps/api
+    volumes:
+      - .:/code
+    environment:
+      GOFLAGS: -buildvcs=false
+    entrypoint:
+      - sh
+      - -c
+    command:
+      - |
+        apk add --no-cache git
+        go install github.com/swaggo/swag/cmd/swag@v1.16.6
+        swag init \
+          --generalInfo main.go \
+          --dir cmd/api,internal/auth,internal/server,internal/httpresponse,internal/user \
+          --parseInternal \
+          --output docs
+    profiles:
+      - tools
 volumes:
   crm-db-data:
   keycloak-db-data:

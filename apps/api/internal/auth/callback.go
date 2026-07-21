@@ -15,6 +15,23 @@ import (
 	"github.com/rajipupreti/crm-platform/apps/api/internal/user"
 )
 
+// Callback completes the OpenID Connect authorization flow.
+//
+//	@Summary		Complete OIDC login
+//	@Description	Validates the Keycloak response, creates a session cookie, and redirects to the frontend.
+//	@Tags			Authentication
+//	@Produce		json
+//	@Param			code				query		string	false	"OIDC authorization code"
+//	@Param			state				query		string	false	"One-time OIDC state value"
+//	@Param			error				query		string	false	"OIDC provider error code"
+//	@Param			error_description	query		string	false	"OIDC provider error description"
+//	@Success		303				{string}	string	"Session cookie set and browser redirected to the frontend"
+//	@Failure		400				{object}	SwaggerErrorResponse
+//	@Failure		401				{object}	SwaggerErrorResponse
+//	@Failure		403				{object}	SwaggerErrorResponse
+//	@Failure		503				{object}	SwaggerErrorResponse
+//	@Failure		500				{object}	SwaggerErrorResponse
+//	@Router			/auth/callback [get]
 func (h *Handler) Callback(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -54,11 +71,10 @@ func (h *Handler) Callback(
 		return
 	}
 
-	transaction, err :=
-		h.transactionStore.Consume(
-			r.Context(),
-			state,
-		)
+	transaction, err := h.transactionStore.Consume(
+		r.Context(),
+		state,
+	)
 	if err != nil {
 		switch {
 		case errors.Is(
@@ -128,19 +144,18 @@ func (h *Handler) Callback(
 		return
 	}
 
-	crmUser, err :=
-		h.identitySynchronizer.SynchronizeIdentity(
-			r.Context(),
-			user.Identity{
-				Provider:       "keycloak",
-				ProviderUserID: identity.Subject,
-				Email:          identity.Email,
-				EmailVerified:  identity.EmailVerified,
-				FirstName:      identity.GivenName,
-				LastName:       identity.FamilyName,
-				DisplayName:    identity.Name,
-			},
-		)
+	crmUser, err := h.identitySynchronizer.SynchronizeIdentity(
+		r.Context(),
+		user.Identity{
+			Provider:       "keycloak",
+			ProviderUserID: identity.Subject,
+			Email:          identity.Email,
+			EmailVerified:  identity.EmailVerified,
+			FirstName:      identity.GivenName,
+			LastName:       identity.FamilyName,
+			DisplayName:    identity.Name,
+		},
+	)
 	if err != nil {
 		log.Printf(
 			"synchronize authenticated CRM user: %v",
@@ -172,10 +187,9 @@ func (h *Handler) Callback(
 		return
 	}
 
-	destination, err :=
-		h.frontendDestination(
-			transaction.ReturnTo,
-		)
+	destination, err := h.frontendDestination(
+		transaction.ReturnTo,
+	)
 	if err != nil {
 		log.Printf(
 			"build frontend redirect: %v",
@@ -190,12 +204,10 @@ func (h *Handler) Callback(
 		)
 		return
 	}
-
-	createdSession, err :=
-		h.sessionCreator.Create(
-			r.Context(),
-			crmUser.ID,
-		)
+	createdSession, err := h.sessionCreator.Create(
+		r.Context(),
+		crmUser.ID,
+	)
 	if err != nil {
 		log.Printf(
 			"create application session: %v",
@@ -235,14 +247,13 @@ func (h *Handler) exchangeAndVerify(
 		h.oidcClient.HTTPClient,
 	)
 
-	oauthToken, err :=
-		h.oidcClient.OAuth2Config.Exchange(
-			oidcContext,
-			code,
-			oauth2.VerifierOption(
-				transaction.CodeVerifier,
-			),
-		)
+	oauthToken, err := h.oidcClient.OAuth2Config.Exchange(
+		oidcContext,
+		code,
+		oauth2.VerifierOption(
+			transaction.CodeVerifier,
+		),
+	)
 	if err != nil {
 		return IdentityClaims{}, fmt.Errorf(
 			"%w: %v",
@@ -251,8 +262,7 @@ func (h *Handler) exchangeAndVerify(
 		)
 	}
 
-	rawIDToken, ok :=
-		oauthToken.Extra("id_token").(string)
+	rawIDToken, ok := oauthToken.Extra("id_token").(string)
 
 	if !ok ||
 		strings.TrimSpace(rawIDToken) == "" {
@@ -260,11 +270,10 @@ func (h *Handler) exchangeAndVerify(
 			ErrMissingIDToken
 	}
 
-	idToken, err :=
-		h.oidcClient.Verifier.Verify(
-			oidcContext,
-			rawIDToken,
-		)
+	idToken, err := h.oidcClient.Verifier.Verify(
+		oidcContext,
+		rawIDToken,
+	)
 	if err != nil {
 		return IdentityClaims{}, fmt.Errorf(
 			"%w: %v",

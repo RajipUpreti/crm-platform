@@ -1,3 +1,29 @@
+// Package main starts the CRM Platform API.
+//
+//	@title						CRM Platform API
+//	@version					1.0
+//	@description				Backend API for CRM authentication, users, organisations, contacts, deals, and related resources.
+//	@description				Authentication uses a Redis-backed opaque session stored in an HttpOnly cookie.
+//	@termsOfService				https://example.com/terms
+//
+//	@contact.name				Rajip Upreti
+//	@contact.email				upretirajeev0@gmail.com
+//
+//	@license.name				Proprietary
+//
+//	@host						localhost:8080
+//	@BasePath					/
+//	@schemes					http
+//
+//	@securityDefinitions.apikey	CookieAuth
+//	@in						header
+//	@name					Cookie
+//
+//	@tag.name					Health
+//	@tag.description			Service health and dependency diagnostics.
+//
+//	@tag.name					Authentication
+//	@tag.description			OIDC login, current-user session, and logout operations.
 package main
 
 import (
@@ -19,6 +45,8 @@ import (
 	"github.com/rajipupreti/crm-platform/apps/api/internal/server"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/session"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/user"
+
+	_ "github.com/rajipupreti/crm-platform/apps/api/docs"
 )
 
 func main() {

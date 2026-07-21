@@ -1,0 +1,262 @@
+basePath: /
+definitions:
+  auth.CurrentUserResponse:
+    properties:
+      expiresAt:
+        example: "2026-07-22T01:00:00Z"
+        type: string
+      user:
+        $ref: '#/definitions/user.User'
+    type: object
+  auth.LogoutResponse:
+    properties:
+      loggedOut:
+        example: true
+        type: boolean
+    type: object
+  auth.SwaggerErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/httpresponse.ErrorDetail'
+    type: object
+  httpresponse.DependencyHealthResponse:
+    properties:
+      clientId:
+        example: crm-backend
+        type: string
+      issuer:
+        example: http://localhost:8081/realms/crm
+        format: uri
+        type: string
+      redirectUrl:
+        example: http://localhost:8080/auth/callback
+        format: uri
+        type: string
+      status:
+        example: ok
+        type: string
+    type: object
+  httpresponse.ErrorDetail:
+    properties:
+      code:
+        example: authentication_required
+        type: string
+      message:
+        example: authentication is required
+        type: string
+    type: object
+  httpresponse.HealthResponse:
+    properties:
+      status:
+        example: ok
+        type: string
+    type: object
+  user.Status:
+    enum:
+    - ACTIVE
+    - SUSPENDED
+    - DELETED
+    type: string
+    x-enum-varnames:
+    - StatusActive
+    - StatusSuspended
+    - StatusDeleted
+  user.User:
+    properties:
+      createdAt:
+        example: "2026-07-21T01:00:00Z"
+        type: string
+      displayName:
+        example: Local Developer
+        type: string
+      email:
+        example: developer@example.com
+        format: email
+        type: string
+      emailVerified:
+        example: true
+        type: boolean
+      firstName:
+        example: Local
+        type: string
+      id:
+        example: 3ea55be2-3e57-4c85-9d19-f6048c405e44
+        format: uuid
+        type: string
+      lastName:
+        example: Developer
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/user.Status'
+        enum:
+        - ACTIVE
+        - SUSPENDED
+        - DELETED
+        example: ACTIVE
+      updatedAt:
+        example: "2026-07-21T01:00:00Z"
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: upretirajeev0@gmail.com
+    name: Rajip Upreti
+  description: |-
+    Backend API for CRM authentication, users, organisations, contacts, deals, and related resources.
+    Authentication uses a Redis-backed opaque session stored in an HttpOnly cookie.
+  license:
+    name: Proprietary
+  termsOfService: https://example.com/terms
+  title: CRM Platform API
+  version: "1.0"
+paths:
+  /auth/callback:
+    get:
+      description: Validates the Keycloak response, creates a session cookie, and
+        redirects to the frontend.
+      parameters:
+      - description: OIDC authorization code
+        in: query
+        name: code
+        type: string
+      - description: One-time OIDC state value
+        in: query
+        name: state
+        type: string
+      - description: OIDC provider error code
+        in: query
+        name: error
+        type: string
+      - description: OIDC provider error description
+        in: query
+        name: error_description
+        type: string
+      produces:
+      - application/json
+      responses:
+        "303":
+          description: Session cookie set and browser redirected to the frontend
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/auth.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/auth.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/auth.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/auth.SwaggerErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/auth.SwaggerErrorResponse'
+      summary: Complete OIDC login
+      tags:
+      - Authentication
+  /auth/login:
+    get:
+      description: Creates a one-time OIDC transaction and redirects the browser to
+        Keycloak.
+      parameters:
+      - description: Safe application-relative path after login
+        example: /dashboard
+        in: query
+        name: return_to
+        type: string
+      produces:
+      - text/html
+      responses:
+        "302":
+          description: Redirect to the Keycloak authorization endpoint
+          schema:
+            type: string
+        "500":
+          description: Could not start authentication
+          schema:
+            type: string
+      summary: Start login
+      tags:
+      - Authentication
+  /auth/logout:
+    post:
+      description: Deletes the current session when present and always clears the
+        session cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.LogoutResponse'
+      summary: Log out
+      tags:
+      - Authentication
+  /auth/me:
+    get:
+      description: Returns the user associated with the Redis-backed application session.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.CurrentUserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/auth.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/auth.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/auth.SwaggerErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: Get current user
+      tags:
+      - Authentication
+  /health:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpresponse.HealthResponse'
+      summary: API health
+      tags:
+      - Health
+  /health/auth:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpresponse.DependencyHealthResponse'
+      summary: Authentication health
+      tags:
+      - Health
+schemes:
+- http
+securityDefinitions:
+  CookieAuth:
+    in: header
+    name: Cookie
+    type: apiKey
+swagger: "2.0"

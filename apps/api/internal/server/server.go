@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"time"
 
+	httpSwagger "github.com/swaggo/http-swagger/v2"
+
 	"github.com/rajipupreti/crm-platform/apps/api/internal/auth"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/httpresponse"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/middleware"
@@ -29,7 +31,6 @@ func New(
 	}
 
 	mux := http.NewServeMux()
-
 
 	mux.HandleFunc(
 		"GET /health",
@@ -64,7 +65,24 @@ func New(
 		"POST /auth/logout",
 		server.authHandler.Logout,
 	)
+	mux.HandleFunc(
+		"GET /swagger",
+		func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(
+				w,
+				r,
+				"/swagger/index.html",
+				http.StatusTemporaryRedirect,
+			)
+		},
+	)
 
+	mux.Handle(
+		"GET /swagger/",
+		httpSwagger.Handler(
+			httpSwagger.URL("/swagger/doc.json"),
+		),
+	)
 	server.httpServer = &http.Server{
 		Addr:              address,
 		Handler:           mux,
@@ -81,6 +99,13 @@ func (s *Server) HTTPServer() *http.Server {
 	return s.httpServer
 }
 
+// health reports whether the API process is running.
+//
+//	@Summary	API health
+//	@Tags		Health
+//	@Produce	json
+//	@Success	200	{object}	httpresponse.HealthResponse
+//	@Router		/health [get]
 func (s *Server) health(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -94,6 +119,13 @@ func (s *Server) health(
 	)
 }
 
+// authHealth reports the configured OpenID Connect client metadata.
+//
+//	@Summary	Authentication health
+//	@Tags		Health
+//	@Produce	json
+//	@Success	200	{object}	httpresponse.DependencyHealthResponse
+//	@Router		/health/auth [get]
 func (s *Server) authHealth(
 	w http.ResponseWriter,
 	r *http.Request,

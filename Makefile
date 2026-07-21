@@ -69,3 +69,15 @@ migrate-create:
 	docker compose -f compose.dev.yaml --profile tools run --rm \
 		--entrypoint migrate migrate \
 		create -ext sql -dir /migrations -seq $(NAME)
+
+
+.PHONY: swagger swagger-check swagger-clean
+
+swagger:
+	docker compose -f compose.dev.yaml --profile tools run --rm swagger
+
+swagger-check: swagger
+	git diff --exit-code -- apps/api/docs
+
+swagger-clean:
+	rm -rf apps/api/docs

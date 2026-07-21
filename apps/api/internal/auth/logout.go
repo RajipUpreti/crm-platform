@@ -7,6 +7,14 @@ import (
 	"github.com/rajipupreti/crm-platform/apps/api/internal/httpresponse"
 )
 
+// Logout destroys the current application session.
+//
+//	@Summary		Log out
+//	@Description	Deletes the current session when present and always clears the session cookie.
+//	@Tags			Authentication
+//	@Produce		json
+//	@Success		200	{object}	LogoutResponse
+//	@Router			/auth/logout [post]
 func (h *Handler) Logout(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -26,14 +34,15 @@ func (h *Handler) Logout(
 	}
 
 	h.sessionCookieManager.Clear(w)
-
 	httpresponse.JSON(
 		w,
 		http.StatusOK,
-		struct {
-			LoggedOut bool `json:"loggedOut"`
-		}{
+		LogoutResponse{
 			LoggedOut: true,
 		},
 	)
+}
+
+type LogoutResponse struct {
+	LoggedOut bool `json:"loggedOut" example:"true"`
 }
