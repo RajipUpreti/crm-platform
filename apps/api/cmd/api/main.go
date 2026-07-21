@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,14 +14,19 @@ import (
 	"github.com/rajipupreti/crm-platform/apps/api/internal/auth"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/config"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/database"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/middleware"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/redisclient"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/server"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/session"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/user"
 )
 
 func main() {
 	if err := run(); err != nil {
-		log.Printf("application stopped with error: %v", err)
+		log.Printf(
+			"application stopped with error: %v",
+			err,
+		)
 		os.Exit(1)
 	}
 }
@@ -37,31 +43,31 @@ func run() error {
 	)
 	defer startupCancel()
 
-	postgresPool, err :=
-		database.OpenPostgres(
-			startupContext,
-			database.PostgresConfig{
-				URL:             cfg.DatabaseURL,
-				MaxConnections:  10,
-				MinConnections:  1,
-				MaxConnLifetime: 30 * time.Minute,
-				MaxConnIdleTime: 5 * time.Minute,
-			},
-		)
+	postgresPool, err := database.OpenPostgres(
+		startupContext,
+		database.PostgresConfig{
+			URL:             cfg.DatabaseURL,
+			MaxConnections:  10,
+			MinConnections:  1,
+			MaxConnLifetime: 30 * time.Minute,
+			MaxConnIdleTime: 5 * time.Minute,
+		},
+	)
 	if err != nil {
 		return err
 	}
-
 	defer postgresPool.Close()
 
-	userRepository, err :=
-		user.NewPostgresRepository(postgresPool)
+	userRepository, err := user.NewPostgresRepository(
+		postgresPool,
+	)
 	if err != nil {
 		return err
 	}
 
-	userService, err :=
-		user.NewService(userRepository)
+	userService, err := user.NewService(
+		userRepository,
+	)
 	if err != nil {
 		return err
 	}
@@ -76,7 +82,6 @@ func run() error {
 			DockerKeycloakAddress: cfg.OIDCDockerKeycloakAddress,
 		},
 	)
-
 	if err != nil {
 		return err
 	}
@@ -101,19 +106,62 @@ func run() error {
 		}
 	}()
 
-	loginTransactionStore, err :=
-		auth.NewRedisLoginTransactionStore(
-			redisClient,
-			cfg.RedisKeyPrefix,
-		)
+	loginTransactionStore, err := auth.NewRedisLoginTransactionStore(
+		redisClient,
+		cfg.RedisKeyPrefix,
+	)
 	if err != nil {
 		return err
+	}
+
+	sessionStore, err := session.NewRedisStore(
+		redisClient,
+		cfg.Session.RedisKeyPrefix,
+	)
+	if err != nil {
+		return err
+	}
+
+	sessionService, err := session.NewService(
+		sessionStore,
+		cfg.Session.TTL,
+	)
+	if err != nil {
+		return err
+	}
+
+	sessionCookieManager, err := session.NewCookieManager(
+		session.CookieConfig{
+			Name:     cfg.Session.CookieName,
+			Path:     "/",
+			Domain:   cfg.Session.CookieDomain,
+			Secure:   cfg.Session.CookieSecure,
+			SameSite: cfg.Session.CookieSameSite,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	authenticationMiddleware, err := middleware.NewAuthenticationMiddleware(
+		sessionService,
+		sessionCookieManager,
+		userService,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"create authentication middleware: %w",
+			err,
+		)
 	}
 
 	authHandler, err := auth.NewHandler(
 		oidcClient,
 		loginTransactionStore,
 		userService,
+		sessionService,
+		sessionService,
+		sessionCookieManager,
 		auth.HandlerConfig{
 			FrontendURL:             cfg.FrontendURL,
 			LoginTransactionTTL:     10 * time.Minute,
@@ -123,13 +171,26 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
 	appServer := server.New(
 		cfg.HTTPAddress,
 		oidcClient,
 		authHandler,
+		authenticationMiddleware,
 	)
 
 	httpServer := appServer.HTTPServer()
+	httpHandler := httpServer.Handler
+
+	corsMiddleware := middleware.NewCORS(
+		cfg.CORSAllowedOrigins,
+	)
+
+	httpHandler = corsMiddleware.Wrap(
+		httpHandler,
+	)
+
+	httpServer.Handler = httpHandler
 
 	serverErrors := make(chan error, 1)
 
@@ -142,7 +203,10 @@ func run() error {
 		serverErrors <- httpServer.ListenAndServe()
 	}()
 
-	shutdownSignal := make(chan os.Signal, 1)
+	shutdownSignal := make(
+		chan os.Signal,
+		1,
+	)
 
 	signal.Notify(
 		shutdownSignal,
@@ -158,7 +222,10 @@ func run() error {
 		)
 
 	case serverErr := <-serverErrors:
-		if !errors.Is(serverErr, http.ErrServerClosed) {
+		if !errors.Is(
+			serverErr,
+			http.ErrServerClosed,
+		) {
 			return serverErr
 		}
 	}
@@ -169,7 +236,9 @@ func run() error {
 	)
 	defer shutdownCancel()
 
-	if err := httpServer.Shutdown(shutdownContext); err != nil {
+	if err := httpServer.Shutdown(
+		shutdownContext,
+	); err != nil {
 		return err
 	}
 

@@ -35,11 +35,10 @@ func (s *Service) SynchronizeIdentity(
 		return User{}, err
 	}
 
-	storedUser, err :=
-		s.repository.UpsertFromIdentity(
-			ctx,
-			identity,
-		)
+	storedUser, err := s.repository.UpsertFromIdentity(
+		ctx,
+		identity,
+	)
 	if err != nil {
 		return User{}, fmt.Errorf(
 			"synchronize user identity: %w",
@@ -75,8 +74,10 @@ func (s *Service) FindByID(
 		return User{}, ErrNotFound
 	}
 
-	storedUser, err :=
-		s.repository.FindByID(ctx, id)
+	storedUser, err := s.repository.FindByID(
+		ctx,
+		id,
+	)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return User{}, ErrNotFound
@@ -88,7 +89,22 @@ func (s *Service) FindByID(
 		)
 	}
 
-	return storedUser, nil
+	switch storedUser.Status {
+	case StatusActive:
+		return storedUser, nil
+
+	case StatusSuspended:
+		return User{}, ErrSuspended
+
+	case StatusDeleted:
+		return User{}, ErrNotFound
+
+	default:
+		return User{}, fmt.Errorf(
+			"unsupported user status %q",
+			storedUser.Status,
+		)
+	}
 }
 
 func normalizeIdentity(

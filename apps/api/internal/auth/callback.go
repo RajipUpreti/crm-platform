@@ -42,10 +42,10 @@ func (h *Handler) Callback(
 		return
 	}
 
-	code := strings.TrimSpace(
+	authorizationCode := strings.TrimSpace(
 		r.URL.Query().Get("code"),
 	)
-	if code == "" {
+	if authorizationCode == "" {
 		h.writeCallbackError(
 			w,
 			ErrMissingAuthorizationCode,
@@ -92,7 +92,10 @@ func (h *Handler) Callback(
 		return
 	}
 
-	if transaction.State != state {
+	if !constantTimeEqual(
+		transaction.State,
+		state,
+	) {
 		log.Printf(
 			"OIDC transaction state mismatch",
 		)
@@ -107,7 +110,7 @@ func (h *Handler) Callback(
 
 	identity, err := h.exchangeAndVerify(
 		r,
-		code,
+		authorizationCode,
 		transaction,
 	)
 	if err != nil {
@@ -145,38 +148,80 @@ func (h *Handler) Callback(
 		)
 
 		status := http.StatusInternalServerError
-		code := "user_synchronization_failed"
+		responseCode := "user_synchronization_failed"
 		message := "could not prepare authenticated user"
 
-		if errors.Is(err, user.ErrSuspended) {
+		switch {
+		case errors.Is(err, user.ErrSuspended):
 			status = http.StatusForbidden
-			code = "user_suspended"
+			responseCode = "user_suspended"
 			message = "user access is suspended"
-		}
 
-		if errors.Is(err, user.ErrInvalidIdentity) {
+		case errors.Is(err, user.ErrInvalidIdentity):
 			status = http.StatusUnauthorized
-			code = "invalid_identity"
+			responseCode = "invalid_identity"
 			message = "authenticated identity is not valid"
 		}
 
 		httpresponse.Error(
 			w,
 			status,
-			code,
+			responseCode,
 			message,
 		)
 		return
 	}
 
-	httpresponse.JSON(
+	destination, err :=
+		h.frontendDestination(
+			transaction.ReturnTo,
+		)
+	if err != nil {
+		log.Printf(
+			"build frontend redirect: %v",
+			err,
+		)
+
+		httpresponse.Error(
+			w,
+			http.StatusInternalServerError,
+			"redirect_failed",
+			"could not complete authentication",
+		)
+		return
+	}
+
+	createdSession, err :=
+		h.sessionCreator.Create(
+			r.Context(),
+			crmUser.ID,
+		)
+	if err != nil {
+		log.Printf(
+			"create application session: %v",
+			err,
+		)
+
+		httpresponse.Error(
+			w,
+			http.StatusInternalServerError,
+			"session_creation_failed",
+			"could not establish application session",
+		)
+		return
+	}
+
+	h.sessionCookieManager.Set(
 		w,
-		http.StatusOK,
-		AuthenticatedIdentityResponse{
-			User:     crmUser,
-			Identity: identity.Response(),
-			ReturnTo: transaction.ReturnTo,
-		},
+		createdSession.Token,
+		createdSession.ExpiresAt,
+	)
+
+	http.Redirect(
+		w,
+		r,
+		destination,
+		http.StatusSeeOther,
 	)
 }
 
@@ -287,26 +332,26 @@ func (h *Handler) writeCallbackError(
 	err error,
 	status int,
 ) {
-	code := "authentication_failed"
+	responseCode := "authentication_failed"
 
 	switch {
 	case errors.Is(err, ErrMissingState):
-		code = "missing_state"
+		responseCode = "missing_state"
 
 	case errors.Is(
 		err,
 		ErrMissingAuthorizationCode,
 	):
-		code = "missing_authorization_code"
+		responseCode = "missing_authorization_code"
 
 	case errors.Is(err, ErrInvalidState):
-		code = "invalid_state"
+		responseCode = "invalid_state"
 	}
 
 	httpresponse.Error(
 		w,
 		status,
-		code,
+		responseCode,
 		err.Error(),
 	)
 }

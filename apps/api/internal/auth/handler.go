@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/rajipupreti/crm-platform/apps/api/internal/session"
 )
 
 type HandlerConfig struct {
@@ -14,10 +16,13 @@ type HandlerConfig struct {
 }
 
 type Handler struct {
-	oidcClient       *OIDCClient
-	transactionStore LoginTransactionStore
-
+	oidcClient           *OIDCClient
+	transactionStore     LoginTransactionStore
 	identitySynchronizer IdentitySynchronizer
+
+	sessionCreator       SessionCreator
+	sessionDestroyer     SessionDestroyer
+	sessionCookieManager *session.CookieManager
 
 	frontendURL             *url.URL
 	loginTransactionTTL     time.Duration
@@ -29,10 +34,15 @@ func NewHandler(
 	oidcClient *OIDCClient,
 	transactionStore LoginTransactionStore,
 	identitySynchronizer IdentitySynchronizer,
+	sessionCreator SessionCreator,
+	sessionDestroyer SessionDestroyer,
+	sessionCookieManager *session.CookieManager,
 	cfg HandlerConfig,
 ) (*Handler, error) {
 	if oidcClient == nil {
-		return nil, fmt.Errorf("OIDC client is required")
+		return nil, fmt.Errorf(
+			"OIDC client is required",
+		)
 	}
 
 	if transactionStore == nil {
@@ -46,7 +56,28 @@ func NewHandler(
 			"identity synchronizer is required",
 		)
 	}
-	frontendURL, err := url.Parse(cfg.FrontendURL)
+
+	if sessionCreator == nil {
+		return nil, fmt.Errorf(
+			"session creator is required",
+		)
+	}
+
+	if sessionCookieManager == nil {
+		return nil, fmt.Errorf(
+			"session cookie manager is required",
+		)
+	}
+
+	if sessionDestroyer == nil {
+		return nil, fmt.Errorf(
+			"session destroyer is required",
+		)
+	}
+
+	frontendURL, err := url.Parse(
+		strings.TrimSpace(cfg.FrontendURL),
+	)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"parse frontend URL: %w",
@@ -54,13 +85,22 @@ func NewHandler(
 		)
 	}
 
-	if frontendURL.Scheme == "" || frontendURL.Host == "" {
+	if frontendURL.Scheme == "" ||
+		frontendURL.Host == "" {
 		return nil, fmt.Errorf(
 			"frontend URL must be absolute",
 		)
 	}
 
+	if frontendURL.Scheme != "http" &&
+		frontendURL.Scheme != "https" {
+		return nil, fmt.Errorf(
+			"frontend URL scheme must be http or https",
+		)
+	}
+
 	transactionTTL := cfg.LoginTransactionTTL
+
 	if transactionTTL <= 0 {
 		transactionTTL = 10 * time.Minute
 	}
@@ -75,7 +115,7 @@ func NewHandler(
 
 	if !isSafeLocalPath(defaultDestination) {
 		return nil, fmt.Errorf(
-			"default login destination must be a local path",
+			"default login destination must be a safe local path",
 		)
 	}
 
@@ -83,6 +123,9 @@ func NewHandler(
 		oidcClient:              oidcClient,
 		transactionStore:        transactionStore,
 		identitySynchronizer:    identitySynchronizer,
+		sessionCreator:          sessionCreator,
+		sessionDestroyer:        sessionDestroyer,
+		sessionCookieManager:    sessionCookieManager,
 		frontendURL:             frontendURL,
 		loginTransactionTTL:     transactionTTL,
 		defaultLoginDestination: defaultDestination,
@@ -90,8 +133,19 @@ func NewHandler(
 	}, nil
 }
 
-func isSafeLocalPath(value string) bool {
+func isSafeLocalPath(
+	value string,
+) bool {
+	value = strings.TrimSpace(value)
+
 	if value == "" {
+		return false
+	}
+
+	if strings.Contains(
+		value,
+		"\\",
+	) {
 		return false
 	}
 
@@ -100,8 +154,38 @@ func isSafeLocalPath(value string) bool {
 		return false
 	}
 
-	return parsed.IsAbs() == false &&
+	return !parsed.IsAbs() &&
 		parsed.Host == "" &&
-		strings.HasPrefix(parsed.Path, "/") &&
-		!strings.HasPrefix(parsed.Path, "//")
+		parsed.User == nil &&
+		strings.HasPrefix(
+			parsed.Path,
+			"/",
+		) &&
+		!strings.HasPrefix(
+			parsed.Path,
+			"//",
+		)
+}
+
+func (h *Handler) frontendDestination(
+	returnTo string,
+) (string, error) {
+	returnTo = strings.TrimSpace(returnTo)
+	if !isSafeLocalPath(returnTo) {
+		return "", fmt.Errorf(
+			"frontend destination must be a safe local path",
+		)
+	}
+
+	localURL, err := url.Parse(returnTo)
+	if err != nil {
+		return "", fmt.Errorf(
+			"parse frontend destination: %w",
+			err,
+		)
+	}
+
+	return h.frontendURL.ResolveReference(
+		localURL,
+	).String(), nil
 }

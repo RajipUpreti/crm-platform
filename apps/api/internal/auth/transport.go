@@ -64,12 +64,18 @@ func normalizeAddress(value string) (string, error) {
 	if value == "" {
 		return "", fmt.Errorf("address is empty")
 	}
-
-	if _, _, err := net.SplitHostPort(value); err != nil {
+	if strings.Contains(value, "://") {
 		return "", fmt.Errorf(
-			"address %q must use host:port format: %w",
+			"address %q must not be a URL",
 			value,
-			err,
+		)
+	}
+
+	host, port, err := net.SplitHostPort(value)
+	if err != nil || host == "" || port == "" {
+		return "", fmt.Errorf(
+			"address %q must use host:port format",
+			value,
 		)
 	}
 

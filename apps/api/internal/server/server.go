@@ -6,25 +6,30 @@ import (
 
 	"github.com/rajipupreti/crm-platform/apps/api/internal/auth"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/httpresponse"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/middleware"
 )
 
 type Server struct {
-	httpServer  *http.Server
-	oidcClient  *auth.OIDCClient
-	authHandler *auth.Handler
+	httpServer     *http.Server
+	oidcClient     *auth.OIDCClient
+	authHandler    *auth.Handler
+	authMiddleware *middleware.AuthenticationMiddleware
 }
 
 func New(
 	address string,
 	oidcClient *auth.OIDCClient,
 	authHandler *auth.Handler,
+	authMiddleware *middleware.AuthenticationMiddleware,
 ) *Server {
 	server := &Server{
-		oidcClient:  oidcClient,
-		authHandler: authHandler,
+		oidcClient:     oidcClient,
+		authHandler:    authHandler,
+		authMiddleware: authMiddleware,
 	}
 
 	mux := http.NewServeMux()
+
 
 	mux.HandleFunc(
 		"GET /health",
@@ -44,6 +49,20 @@ func New(
 	mux.HandleFunc(
 		"GET /auth/callback",
 		server.authHandler.Callback,
+	)
+
+	mux.Handle(
+		"GET /auth/me",
+		server.authMiddleware.Require(
+			http.HandlerFunc(
+				server.authHandler.Me,
+			),
+		),
+	)
+
+	mux.HandleFunc(
+		"POST /auth/logout",
+		server.authHandler.Logout,
 	)
 
 	server.httpServer = &http.Server{

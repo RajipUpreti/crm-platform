@@ -1,6 +1,9 @@
 package auth
 
-import "testing"
+import (
+	"net/url"
+	"testing"
+)
 
 func TestIsSafeLocalPath(t *testing.T) {
 	t.Parallel()
@@ -59,5 +62,49 @@ func TestIsSafeLocalPath(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestFrontendDestination(t *testing.T) {
+	t.Parallel()
+
+	frontendURL, err := url.Parse("https://crm.example.com")
+	if err != nil {
+		t.Fatalf("parse frontend URL: %v", err)
+	}
+
+	handler := &Handler{frontendURL: frontendURL}
+
+	destination, err := handler.frontendDestination(
+		"/app/acme/contacts?page=2",
+	)
+	if err != nil {
+		t.Fatalf("frontendDestination() error = %v", err)
+	}
+
+	const expected = "https://crm.example.com/app/acme/contacts?page=2"
+	if destination != expected {
+		t.Fatalf(
+			"frontendDestination() = %q; expected %q",
+			destination,
+			expected,
+		)
+	}
+}
+
+func TestFrontendDestinationRejectsExternalURL(t *testing.T) {
+	t.Parallel()
+
+	frontendURL, err := url.Parse("https://crm.example.com")
+	if err != nil {
+		t.Fatalf("parse frontend URL: %v", err)
+	}
+
+	handler := &Handler{frontendURL: frontendURL}
+
+	if _, err := handler.frontendDestination(
+		"https://attacker.example.com",
+	); err == nil {
+		t.Fatal("frontendDestination() accepted an external URL")
 	}
 }
