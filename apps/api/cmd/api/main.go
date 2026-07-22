@@ -40,6 +40,7 @@ import (
 	"github.com/rajipupreti/crm-platform/apps/api/internal/auth"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/config"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/database"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/onboarding"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/middleware"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/redisclient"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/server"
@@ -85,7 +86,25 @@ func run() error {
 		return err
 	}
 	defer postgresPool.Close()
+	onboardingRepository, err := onboarding.NewPostgresRepository(
+		postgresPool,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"create onboarding repository: %w",
+			err,
+		)
+	}
 
+	onboardingService, err := onboarding.NewService(
+		onboardingRepository,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"create onboarding service: %w",
+			err,
+		)
+	}
 	userRepository, err := user.NewPostgresRepository(
 		postgresPool,
 	)
@@ -187,6 +206,7 @@ func run() error {
 		oidcClient,
 		loginTransactionStore,
 		userService,
+		onboardingService,
 		sessionService,
 		sessionService,
 		sessionCookieManager,

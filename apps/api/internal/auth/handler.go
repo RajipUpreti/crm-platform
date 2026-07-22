@@ -19,6 +19,7 @@ type Handler struct {
 	oidcClient           *OIDCClient
 	transactionStore     LoginTransactionStore
 	identitySynchronizer IdentitySynchronizer
+	tenantOnboarder      TenantOnboarder
 
 	sessionCreator       SessionCreator
 	sessionDestroyer     SessionDestroyer
@@ -34,6 +35,7 @@ func NewHandler(
 	oidcClient *OIDCClient,
 	transactionStore LoginTransactionStore,
 	identitySynchronizer IdentitySynchronizer,
+	tenantOnboarder TenantOnboarder,
 	sessionCreator SessionCreator,
 	sessionDestroyer SessionDestroyer,
 	sessionCookieManager *session.CookieManager,
@@ -98,6 +100,11 @@ func NewHandler(
 			"frontend URL scheme must be http or https",
 		)
 	}
+	if tenantOnboarder == nil {
+		return nil, fmt.Errorf(
+			"tenant onboarder is required",
+		)
+	}
 
 	transactionTTL := cfg.LoginTransactionTTL
 
@@ -129,6 +136,7 @@ func NewHandler(
 		frontendURL:             frontendURL,
 		loginTransactionTTL:     transactionTTL,
 		defaultLoginDestination: defaultDestination,
+		tenantOnboarder:         tenantOnboarder,
 		now:                     time.Now,
 	}, nil
 }

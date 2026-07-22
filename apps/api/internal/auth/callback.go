@@ -1,20 +1,3 @@
-package auth
-
-import (
-	"crypto/subtle"
-	"errors"
-	"fmt"
-	"log"
-	"net/http"
-	"strings"
-
-	"github.com/coreos/go-oidc/v3/oidc"
-	"golang.org/x/oauth2"
-
-	"github.com/rajipupreti/crm-platform/apps/api/internal/httpresponse"
-	"github.com/rajipupreti/crm-platform/apps/api/internal/user"
-)
-
 // Callback completes the OpenID Connect authorization flow.
 //
 //	@Summary		Complete OIDC login
@@ -32,6 +15,23 @@ import (
 //	@Failure		503				{object}	SwaggerErrorResponse
 //	@Failure		500				{object}	SwaggerErrorResponse
 //	@Router			/auth/callback [get]
+package auth
+
+import (
+	"crypto/subtle"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+
+	"github.com/coreos/go-oidc/v3/oidc"
+	"golang.org/x/oauth2"
+
+	"github.com/rajipupreti/crm-platform/apps/api/internal/httpresponse"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/user"
+)
+
 func (h *Handler) Callback(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -186,7 +186,24 @@ func (h *Handler) Callback(
 		)
 		return
 	}
+	_, err = h.tenantOnboarder.EnsureTenantAccess(
+		r.Context(),
+		crmUser,
+	)
+	if err != nil {
+		log.Printf(
+			"ensure authenticated user tenant access: %v",
+			err,
+		)
 
+		httpresponse.Error(
+			w,
+			http.StatusInternalServerError,
+			"tenant_provisioning_failed",
+			"could not prepare user workspace",
+		)
+		return
+	}
 	destination, err := h.frontendDestination(
 		transaction.ReturnTo,
 	)

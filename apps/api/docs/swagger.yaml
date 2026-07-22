@@ -112,57 +112,6 @@ info:
   title: CRM Platform API
   version: "1.0"
 paths:
-  /auth/callback:
-    get:
-      description: Validates the Keycloak response, creates a session cookie, and
-        redirects to the frontend.
-      parameters:
-      - description: OIDC authorization code
-        in: query
-        name: code
-        type: string
-      - description: One-time OIDC state value
-        in: query
-        name: state
-        type: string
-      - description: OIDC provider error code
-        in: query
-        name: error
-        type: string
-      - description: OIDC provider error description
-        in: query
-        name: error_description
-        type: string
-      produces:
-      - application/json
-      responses:
-        "303":
-          description: Session cookie set and browser redirected to the frontend
-          schema:
-            type: string
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/auth.SwaggerErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/auth.SwaggerErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/auth.SwaggerErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/auth.SwaggerErrorResponse'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/auth.SwaggerErrorResponse'
-      summary: Complete OIDC login
-      tags:
-      - Authentication
   /auth/login:
     get:
       description: Creates a one-time OIDC transaction and redirects the browser to
