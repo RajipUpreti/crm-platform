@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/membership"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/tenant"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/requestcontext"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/session"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/user"
@@ -48,6 +50,31 @@ func (f *fakeUserReader) FindByID(
 	return f.result, f.err
 }
 
+type fakeTenantReader struct {
+	result tenant.Tenant
+	err    error
+}
+
+func (f *fakeTenantReader) FindByID(
+	ctx context.Context,
+	id string,
+) (tenant.Tenant, error) {
+	return f.result, f.err
+}
+
+type fakeMembershipReader struct {
+	result membership.Membership
+	err    error
+}
+
+func (f *fakeMembershipReader) FindActiveByTenantAndUser(
+	ctx context.Context,
+	tenantID string,
+	userID string,
+) (membership.Membership, error) {
+	return f.result, f.err
+}
+
 func TestAuthenticationMiddlewareAllowsValidSession(
 	t *testing.T,
 ) {
@@ -59,9 +86,11 @@ func TestAuthenticationMiddlewareAllowsValidSession(
 	middleware, err := NewAuthenticationMiddleware(
 		&fakeSessionReader{
 			result: session.Session{
-				UserID:    "user-id",
-				CreatedAt: time.Now(),
-				ExpiresAt: expiresAt,
+				UserID:       "user-id",
+				TenantID:     "tenant-id",
+				MembershipID: "membership-id",
+				CreatedAt:    time.Now(),
+				ExpiresAt:    expiresAt,
 			},
 		},
 		&fakeCookieReader{
@@ -72,6 +101,21 @@ func TestAuthenticationMiddlewareAllowsValidSession(
 				ID:     "user-id",
 				Email:  "developer@example.com",
 				Status: user.StatusActive,
+			},
+		},
+		&fakeTenantReader{
+			result: tenant.Tenant{
+				ID:     "tenant-id",
+				Status: tenant.StatusActive,
+			},
+		},
+		&fakeMembershipReader{
+			result: membership.Membership{
+				ID:       "membership-id",
+				TenantID: "tenant-id",
+				UserID:   "user-id",
+				Role:     membership.RoleOwner,
+				Status:   membership.StatusActive,
 			},
 		},
 	)
@@ -109,7 +153,21 @@ func TestAuthenticationMiddlewareAllowsValidSession(
 					authentication.User.ID,
 				)
 			}
+			if authentication.Tenant.ID !=
+				"tenant-id" {
+				t.Fatalf(
+					"tenant ID = %q; expected tenant-id",
+					authentication.Tenant.ID,
+				)
+			}
 
+			if authentication.Membership.Role !=
+				membership.RoleOwner {
+				t.Fatalf(
+					"role = %q; expected OWNER",
+					authentication.Membership.Role,
+				)
+			}
 			w.WriteHeader(http.StatusOK)
 		},
 	)
@@ -154,6 +212,21 @@ func TestAuthenticationMiddlewareRejectsMissingCookie(
 			err: session.ErrNotFound,
 		},
 		&fakeUserReader{},
+		&fakeTenantReader{
+			result: tenant.Tenant{
+				ID:     "tenant-id",
+				Status: tenant.StatusActive,
+			},
+		},
+		&fakeMembershipReader{
+			result: membership.Membership{
+				ID:       "membership-id",
+				TenantID: "tenant-id",
+				UserID:   "user-id",
+				Role:     membership.RoleOwner,
+				Status:   membership.StatusActive,
+			},
+		},
 	)
 	if err != nil {
 		t.Fatalf(
@@ -209,6 +282,21 @@ func TestAuthenticationMiddlewareRejectsExpiredSession(
 			token: "expired-token",
 		},
 		&fakeUserReader{},
+		&fakeTenantReader{
+			result: tenant.Tenant{
+				ID:     "tenant-id",
+				Status: tenant.StatusActive,
+			},
+		},
+		&fakeMembershipReader{
+			result: membership.Membership{
+				ID:       "membership-id",
+				TenantID: "tenant-id",
+				UserID:   "user-id",
+				Role:     membership.RoleOwner,
+				Status:   membership.StatusActive,
+			},
+		},
 	)
 	if err != nil {
 		t.Fatalf(
@@ -259,9 +347,10 @@ func TestAuthenticationMiddlewareRejectsSuspendedUser(
 	middleware, err := NewAuthenticationMiddleware(
 		&fakeSessionReader{
 			result: session.Session{
-				UserID: "user-id",
-				ExpiresAt: time.Now().
-					Add(time.Hour),
+				UserID:       "user-id",
+				TenantID:     "tenant-id",
+				MembershipID: "membership-id",
+				CreatedAt:    time.Now(),
 			},
 		},
 		&fakeCookieReader{
@@ -269,6 +358,21 @@ func TestAuthenticationMiddlewareRejectsSuspendedUser(
 		},
 		&fakeUserReader{
 			err: user.ErrSuspended,
+		},
+		&fakeTenantReader{
+			result: tenant.Tenant{
+				ID:     "tenant-id",
+				Status: tenant.StatusActive,
+			},
+		},
+		&fakeMembershipReader{
+			result: membership.Membership{
+				ID:       "membership-id",
+				TenantID: "tenant-id",
+				UserID:   "user-id",
+				Role:     membership.RoleOwner,
+				Status:   membership.StatusActive,
+			},
 		},
 	)
 	if err != nil {
@@ -327,6 +431,21 @@ func TestAuthenticationMiddlewareHandlesStoreFailure(
 			token: "session-token",
 		},
 		&fakeUserReader{},
+		&fakeTenantReader{
+			result: tenant.Tenant{
+				ID:     "tenant-id",
+				Status: tenant.StatusActive,
+			},
+		},
+		&fakeMembershipReader{
+			result: membership.Membership{
+				ID:       "membership-id",
+				TenantID: "tenant-id",
+				UserID:   "user-id",
+				Role:     membership.RoleOwner,
+				Status:   membership.StatusActive,
+			},
+		},
 	)
 	if err != nil {
 		t.Fatalf(

@@ -40,12 +40,37 @@ func NewService(
 
 func (s *Service) Create(
 	ctx context.Context,
-	userID string,
+	input CreateInput,
 ) (CreatedSession, error) {
-	userID = strings.TrimSpace(userID)
-	if userID == "" {
+	input.UserID = strings.TrimSpace(
+		input.UserID,
+	)
+
+	input.TenantID = strings.TrimSpace(
+		input.TenantID,
+	)
+
+	input.MembershipID = strings.TrimSpace(
+		input.MembershipID,
+	)
+
+	if input.UserID == "" {
 		return CreatedSession{}, fmt.Errorf(
 			"%w: user ID is required",
+			ErrInvalid,
+		)
+	}
+
+	if input.TenantID == "" {
+		return CreatedSession{}, fmt.Errorf(
+			"%w: tenant ID is required",
+			ErrInvalid,
+		)
+	}
+
+	if input.MembershipID == "" {
+		return CreatedSession{}, fmt.Errorf(
+			"%w: membership ID is required",
 			ErrInvalid,
 		)
 	}
@@ -54,9 +79,11 @@ func (s *Service) Create(
 	expiresAt := now.Add(s.ttl)
 
 	storedSession := Session{
-		UserID:    userID,
-		CreatedAt: now,
-		ExpiresAt: expiresAt,
+		UserID:       input.UserID,
+		TenantID:     input.TenantID,
+		MembershipID: input.MembershipID,
+		CreatedAt:    now,
+		ExpiresAt:    expiresAt,
 	}
 
 	for attempt := 0; attempt <

@@ -11,6 +11,7 @@
 //	@Success		303				{string}	string	"Session cookie set and browser redirected to the frontend"
 //	@Failure		400				{object}	SwaggerErrorResponse
 //	@Failure		401				{object}	SwaggerErrorResponse
+//	@Failure		401				{object}	SwaggerErrorResponse
 //	@Failure		403				{object}	SwaggerErrorResponse
 //	@Failure		503				{object}	SwaggerErrorResponse
 //	@Failure		500				{object}	SwaggerErrorResponse
@@ -29,6 +30,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/rajipupreti/crm-platform/apps/api/internal/httpresponse"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/session"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/user"
 )
 
@@ -186,7 +188,7 @@ func (h *Handler) Callback(
 		)
 		return
 	}
-	_, err = h.tenantOnboarder.EnsureTenantAccess(
+	tenantAccess, err := h.tenantOnboarder.EnsureTenantAccess(
 		r.Context(),
 		crmUser,
 	)
@@ -204,6 +206,7 @@ func (h *Handler) Callback(
 		)
 		return
 	}
+
 	destination, err := h.frontendDestination(
 		transaction.ReturnTo,
 	)
@@ -223,7 +226,13 @@ func (h *Handler) Callback(
 	}
 	createdSession, err := h.sessionCreator.Create(
 		r.Context(),
-		crmUser.ID,
+		session.CreateInput{
+			UserID: crmUser.ID,
+
+			TenantID: tenantAccess.Tenant.ID,
+
+			MembershipID: tenantAccess.Membership.ID,
+		},
 	)
 	if err != nil {
 		log.Printf(

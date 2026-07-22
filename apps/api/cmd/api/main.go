@@ -40,7 +40,9 @@ import (
 	"github.com/rajipupreti/crm-platform/apps/api/internal/auth"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/config"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/database"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/membership"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/onboarding"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/tenant"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/middleware"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/redisclient"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/server"
@@ -84,6 +86,44 @@ func run() error {
 	)
 	if err != nil {
 		return err
+	}
+	tenantRepository, err := tenant.NewPostgresRepository(
+		postgresPool,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"create tenant repository: %w",
+			err,
+		)
+	}
+
+	tenantService, err := tenant.NewService(
+		tenantRepository,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"create tenant service: %w",
+			err,
+		)
+	}
+	membershipRepository, err := membership.NewPostgresRepository(
+		postgresPool,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"create membership repository: %w",
+			err,
+		)
+	}
+
+	membershipService, err := membership.NewService(
+		membershipRepository,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"create membership service: %w",
+			err,
+		)
 	}
 	defer postgresPool.Close()
 	onboardingRepository, err := onboarding.NewPostgresRepository(
@@ -194,6 +234,8 @@ func run() error {
 		sessionService,
 		sessionCookieManager,
 		userService,
+		tenantService,
+		membershipService,
 	)
 	if err != nil {
 		return fmt.Errorf(

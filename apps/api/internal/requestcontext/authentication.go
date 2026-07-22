@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/membership"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/tenant"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/session"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/user"
 )
@@ -12,7 +14,12 @@ type authenticationContextKey struct{}
 
 type Authentication struct {
 	Session session.Session
-	User    user.User
+
+	User user.User
+
+	Tenant tenant.Tenant
+
+	Membership membership.Membership
 }
 
 var ErrAuthenticationMissing = errors.New("authentication context missing")
@@ -31,10 +38,9 @@ func WithAuthentication(
 func AuthenticationFromContext(
 	ctx context.Context,
 ) (Authentication, error) {
-	authentication, ok :=
-		ctx.Value(
-			authenticationContextKey{},
-		).(Authentication)
+	authentication, ok := ctx.Value(
+		authenticationContextKey{},
+	).(Authentication)
 
 	if !ok {
 		return Authentication{},

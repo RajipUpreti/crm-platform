@@ -9,6 +9,6 @@ import (
 type SessionCreator interface {
 	Create(
 		ctx context.Context,
-		userID string,
+		input session.CreateInput,
 	) (session.CreatedSession, error)
 }

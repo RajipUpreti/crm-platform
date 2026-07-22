@@ -97,7 +97,11 @@ func TestServiceCreate(
 
 	created, err := service.Create(
 		context.Background(),
-		"user-id",
+		CreateInput{
+			UserID:       "user-id",
+			TenantID:     "tenant-id",
+			MembershipID: "membership-id",
+		},
 	)
 	if err != nil {
 		t.Fatalf(
@@ -132,8 +136,7 @@ func TestServiceCreate(
 		)
 	}
 
-	expectedExpiration :=
-		fixedNow.Add(ttl)
+	expectedExpiration := fixedNow.Add(ttl)
 
 	if !created.ExpiresAt.Equal(
 		expectedExpiration,
@@ -142,6 +145,21 @@ func TestServiceCreate(
 			"expiration = %v; expected %v",
 			created.ExpiresAt,
 			expectedExpiration,
+		)
+	}
+	if store.createdSession.TenantID !=
+		"tenant-id" {
+		t.Fatalf(
+			"tenant ID = %q; expected tenant-id",
+			store.createdSession.TenantID,
+		)
+	}
+
+	if store.createdSession.MembershipID !=
+		"membership-id" {
+		t.Fatalf(
+			"membership ID = %q; expected membership-id",
+			store.createdSession.MembershipID,
 		)
 	}
 }
@@ -164,7 +182,7 @@ func TestServiceCreateRejectsMissingUserID(
 
 	_, err = service.Create(
 		context.Background(),
-		" ",
+		CreateInput{},
 	)
 
 	if !errors.Is(err, ErrInvalid) {
@@ -229,6 +247,38 @@ func TestServiceFindRejectsExpiredSession(
 	if store.deletedDigest == "" {
 		t.Fatal(
 			"expired session was not deleted",
+		)
+	}
+}
+
+func TestServiceCreateRejectsMissingTenantID(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	service, err := NewService(
+		&fakeStore{},
+		time.Hour,
+	)
+	if err != nil {
+		t.Fatalf(
+			"NewService() error = %v",
+			err,
+		)
+	}
+
+	_, err = service.Create(
+		context.Background(),
+		CreateInput{
+			UserID:       "user-id",
+			MembershipID: "membership-id",
+		},
+	)
+
+	if !errors.Is(err, ErrInvalid) {
+		t.Fatalf(
+			"error = %v; expected ErrInvalid",
+			err,
 		)
 	}
 }

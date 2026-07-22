@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/rajipupreti/crm-platform/apps/api/internal/httpresponse"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/membership"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/tenant"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/requestcontext"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/user"
 )
@@ -12,7 +14,11 @@ import (
 type CurrentUserResponse struct {
 	User user.User `json:"user"`
 
-	ExpiresAt time.Time `json:"expiresAt" example:"2026-07-22T01:00:00Z"`
+	Tenant tenant.Tenant `json:"tenant"`
+
+	Membership membership.Membership `json:"membership"`
+
+	ExpiresAt time.Time `json:"expiresAt"`
 }
 
 // Me returns the currently authenticated CRM user.
@@ -49,6 +55,11 @@ func (h *Handler) Me(
 		http.StatusOK,
 		CurrentUserResponse{
 			User: authentication.User,
+
+			Tenant: authentication.Tenant,
+
+			Membership: authentication.Membership,
+
 			ExpiresAt: authentication.
 				Session.
 				ExpiresAt,

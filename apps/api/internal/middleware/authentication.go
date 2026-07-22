@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	"github.com/rajipupreti/crm-platform/apps/api/internal/httpresponse"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/membership"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/tenant"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/requestcontext"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/session"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/user"
@@ -31,17 +33,37 @@ type UserReader interface {
 		id string,
 	) (user.User, error)
 }
+type TenantReader interface {
+	FindByID(
+		ctx context.Context,
+		id string,
+	) (tenant.Tenant, error)
+}
+
+type MembershipReader interface {
+	FindActiveByTenantAndUser(
+		ctx context.Context,
+		tenantID string,
+		userID string,
+	) (membership.Membership, error)
+}
 
 type AuthenticationMiddleware struct {
 	sessions SessionReader
 	cookies  SessionCookieReader
 	users    UserReader
+
+	tenants TenantReader
+
+	memberships MembershipReader
 }
 
 func NewAuthenticationMiddleware(
 	sessions SessionReader,
 	cookies SessionCookieReader,
 	users UserReader,
+	tenants TenantReader,
+	memberships MembershipReader,
 ) (*AuthenticationMiddleware, error) {
 	if sessions == nil {
 		return nil, errors.New(
@@ -61,10 +83,24 @@ func NewAuthenticationMiddleware(
 		)
 	}
 
+	if tenants == nil {
+		return nil, errors.New(
+			"tenant reader is required",
+		)
+	}
+
+	if memberships == nil {
+		return nil, errors.New(
+			"membership reader is required",
+		)
+	}
+
 	return &AuthenticationMiddleware{
-		sessions: sessions,
-		cookies:  cookies,
-		users:    users,
+		sessions:    sessions,
+		cookies:     cookies,
+		users:       users,
+		tenants:     tenants,
+		memberships: memberships,
 	}, nil
 }
 
@@ -82,11 +118,10 @@ func (m *AuthenticationMiddleware) Require(
 				return
 			}
 
-			storedSession, err :=
-				m.sessions.Find(
-					r.Context(),
-					token,
-				)
+			storedSession, err := m.sessions.Find(
+				r.Context(),
+				token,
+			)
 			if err != nil {
 				switch {
 				case errors.Is(
@@ -120,11 +155,10 @@ func (m *AuthenticationMiddleware) Require(
 				return
 			}
 
-			currentUser, err :=
-				m.users.FindByID(
-					r.Context(),
-					storedSession.UserID,
-				)
+			currentUser, err := m.users.FindByID(
+				r.Context(),
+				storedSession.UserID,
+			)
 			if err != nil {
 				switch {
 				case errors.Is(
@@ -160,16 +194,111 @@ func (m *AuthenticationMiddleware) Require(
 
 				return
 			}
+			currentTenant, err := m.tenants.FindByID(
+				r.Context(),
+				storedSession.TenantID,
+			)
+			if err != nil {
+				switch {
+				case errors.Is(
+					err,
+					tenant.ErrNotFound,
+				),
+					errors.Is(
+						err,
+						tenant.ErrDeleted,
+					):
+					writeUnauthorized(w)
 
-			ctx :=
-				requestcontext.WithAuthentication(
+				case errors.Is(
+					err,
+					tenant.ErrSuspended,
+				):
+					httpresponse.Error(
+						w,
+						http.StatusForbidden,
+						"tenant_suspended",
+						"workspace access is suspended",
+					)
+
+				default:
+					log.Printf(
+						"load authenticated tenant: %v",
+						err,
+					)
+
+					httpresponse.Error(
+						w,
+						http.StatusInternalServerError,
+						"tenant_lookup_failed",
+						"could not load current workspace",
+					)
+				}
+
+				return
+			}
+			currentMembership, err := m.memberships.
+				FindActiveByTenantAndUser(
 					r.Context(),
-					requestcontext.Authentication{
-						Session: storedSession,
-						User:    currentUser,
-					},
+					currentTenant.ID,
+					currentUser.ID,
 				)
+			if err != nil {
+				switch {
+				case errors.Is(
+					err,
+					membership.ErrNotFound,
+				),
+					errors.Is(
+						err,
+						membership.ErrInactive,
+					):
+					writeUnauthorized(w)
 
+				case errors.Is(
+					err,
+					membership.ErrSuspended,
+				):
+					httpresponse.Error(
+						w,
+						http.StatusForbidden,
+						"membership_suspended",
+						"workspace membership is suspended",
+					)
+
+				default:
+					log.Printf(
+						"load authenticated membership: %v",
+						err,
+					)
+
+					httpresponse.Error(
+						w,
+						http.StatusInternalServerError,
+						"membership_lookup_failed",
+						"could not validate workspace membership",
+					)
+				}
+
+				return
+			}
+			if currentMembership.ID !=
+				storedSession.MembershipID {
+				writeUnauthorized(w)
+				return
+			}
+			ctx := requestcontext.WithAuthentication(
+				r.Context(),
+				requestcontext.Authentication{
+					Session: storedSession,
+
+					User: currentUser,
+
+					Tenant: currentTenant,
+
+					Membership: currentMembership,
+				},
+			)
 			next.ServeHTTP(
 				w,
 				r.WithContext(ctx),
