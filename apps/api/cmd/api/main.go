@@ -40,6 +40,7 @@ import (
 	"github.com/rajipupreti/crm-platform/apps/api/internal/auth"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/config"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/database"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/invitation"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/membership"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/onboarding"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/tenant"
@@ -261,12 +262,33 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	invitationRepository, err := invitation.NewPostgresRepository(
+		postgresPool,
+	)
+	if err != nil {
+		return err
+	}
 
+	invitationService, err := invitation.NewService(
+		invitationRepository,
+		7*24*time.Hour,
+	)
+	if err != nil {
+		return err
+	}
+
+	invitationHandler, err := invitation.NewHandler(
+		invitationService,
+	)
+	if err != nil {
+		return err
+	}
 	appServer := server.New(
 		cfg.HTTPAddress,
 		oidcClient,
 		authHandler,
 		authenticationMiddleware,
+		invitationHandler,
 	)
 
 	httpServer := appServer.HTTPServer()

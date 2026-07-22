@@ -8,14 +8,16 @@ import (
 
 	"github.com/rajipupreti/crm-platform/apps/api/internal/auth"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/httpresponse"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/invitation"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/middleware"
 )
 
 type Server struct {
-	httpServer     *http.Server
-	oidcClient     *auth.OIDCClient
-	authHandler    *auth.Handler
-	authMiddleware *middleware.AuthenticationMiddleware
+	httpServer        *http.Server
+	oidcClient        *auth.OIDCClient
+	authHandler       *auth.Handler
+	authMiddleware    *middleware.AuthenticationMiddleware
+	invitationHandler *invitation.Handler
 }
 
 func New(
@@ -23,11 +25,13 @@ func New(
 	oidcClient *auth.OIDCClient,
 	authHandler *auth.Handler,
 	authMiddleware *middleware.AuthenticationMiddleware,
+	invitationHandler *invitation.Handler,
 ) *Server {
 	server := &Server{
-		oidcClient:     oidcClient,
-		authHandler:    authHandler,
-		authMiddleware: authMiddleware,
+		oidcClient:        oidcClient,
+		authHandler:       authHandler,
+		authMiddleware:    authMiddleware,
+		invitationHandler: invitationHandler,
 	}
 
 	mux := http.NewServeMux()
@@ -81,6 +85,24 @@ func New(
 		"GET /swagger/",
 		httpSwagger.Handler(
 			httpSwagger.URL("/swagger/doc.json"),
+		),
+	)
+
+	mux.Handle(
+		"POST /api/v1/tenant/invitations",
+		authMiddleware.Require(
+			http.HandlerFunc(
+				invitationHandler.Create,
+			),
+		),
+	)
+
+	mux.Handle(
+		"POST /api/v1/invitations/accept",
+		authMiddleware.Require(
+			http.HandlerFunc(
+				invitationHandler.Accept,
+			),
 		),
 	)
 	server.httpServer = &http.Server{
