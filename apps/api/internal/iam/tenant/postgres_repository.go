@@ -295,3 +295,93 @@ func isConstraintViolation(
 	return postgresError.ConstraintName ==
 		constraintName
 }
+
+func (r *PostgresRepository) ListAccessByUserID(
+	ctx context.Context,
+	userID string,
+) ([]Access, error) {
+	const query = `
+		SELECT
+			t.id::text,
+			t.name,
+			t.slug,
+			t.status,
+			t.created_at,
+			t.updated_at,
+
+			m.id::text,
+			m.tenant_id::text,
+			m.user_id::text,
+			m.role,
+			m.status,
+			m.joined_at,
+			m.created_at,
+			m.updated_at
+		FROM memberships m
+		INNER JOIN tenants t
+			ON t.id = m.tenant_id
+		WHERE m.user_id = $1
+		  AND m.status = 'ACTIVE'
+		  AND t.status = 'ACTIVE'
+		ORDER BY
+			t.name ASC,
+			t.id ASC
+	`
+
+	rows, err := r.pool.Query(
+		ctx,
+		query,
+		userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"list tenant access: %w",
+			err,
+		)
+	}
+	defer rows.Close()
+
+	accesses := make([]Access, 0)
+
+	for rows.Next() {
+		var access Access
+
+		err := rows.Scan(
+			&access.Tenant.ID,
+			&access.Tenant.Name,
+			&access.Tenant.Slug,
+			&access.Tenant.Status,
+			&access.Tenant.CreatedAt,
+			&access.Tenant.UpdatedAt,
+
+			&access.Membership.ID,
+			&access.Membership.TenantID,
+			&access.Membership.UserID,
+			&access.Membership.Role,
+			&access.Membership.Status,
+			&access.Membership.JoinedAt,
+			&access.Membership.CreatedAt,
+			&access.Membership.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"scan tenant access: %w",
+				err,
+			)
+		}
+
+		accesses = append(
+			accesses,
+			access,
+		)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf(
+			"iterate tenant access: %w",
+			err,
+		)
+	}
+
+	return accesses, nil
+}

@@ -10,6 +10,9 @@ type fakeRepository struct {
 	createInput  CreateInput
 	createResult Tenant
 	createError  error
+
+	listAccessResult []Access
+	listAccessError  error
 }
 
 func (f *fakeRepository) Create(
@@ -47,6 +50,13 @@ func (f *fakeRepository) ListByUserID(
 	userID string,
 ) ([]Tenant, error) {
 	return nil, nil
+}
+
+func (f *fakeRepository) ListAccessByUserID(
+	ctx context.Context,
+	userID string,
+) ([]Access, error) {
+	return f.listAccessResult, f.listAccessError
 }
 
 func TestServiceCreateNormalizesSlug(
@@ -132,6 +142,66 @@ func TestServiceCreateRejectsInvalidSlug(
 		t.Fatalf(
 			"error = %v; expected ErrInvalidInput",
 			err,
+		)
+	}
+}
+
+func TestListAccessByUserIDMarksCurrentTenant(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	repository := &fakeRepository{
+		listAccessResult: []Access{
+			{
+				Tenant: Tenant{
+					ID: "tenant-one",
+				},
+			},
+			{
+				Tenant: Tenant{
+					ID: "tenant-two",
+				},
+			},
+		},
+	}
+
+	service, err := NewService(repository)
+	if err != nil {
+		t.Fatalf(
+			"NewService() error = %v",
+			err,
+		)
+	}
+
+	result, err := service.ListAccessByUserID(
+		context.Background(),
+		"user-id",
+		"tenant-two",
+	)
+	if err != nil {
+		t.Fatalf(
+			"ListAccessByUserID() error = %v",
+			err,
+		)
+	}
+
+	if len(result) != 2 {
+		t.Fatalf(
+			"result length = %d; expected 2",
+			len(result),
+		)
+	}
+
+	if result[0].Current {
+		t.Fatal(
+			"tenant-one should not be current",
+		)
+	}
+
+	if !result[1].Current {
+		t.Fatal(
+			"tenant-two should be current",
 		)
 	}
 }

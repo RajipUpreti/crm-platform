@@ -144,6 +144,7 @@ services:
       KC_DB_PASSWORD: keycloak_password
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin_password
+      KC_HEALTH_ENABLED: "true"
     ports:
       - "8081:8080"
     depends_on:
@@ -153,9 +154,18 @@ services:
       - ./infrastructure/keycloak/realm:/opt/keycloak/data/import
     networks:
       - crm-network
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - http://localhost:9000/health/ready
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   redis:
-    image: redis:7.4-alpine
+    image: valkey/valkey:7.2.14-alpine3.24
     container_name: crm-redis
     command:
       - redis-server

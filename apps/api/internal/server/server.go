@@ -8,70 +8,150 @@ import (
 
 	"github.com/rajipupreti/crm-platform/apps/api/internal/auth"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/httpresponse"
-	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/invitation"
+	iamhttp "github.com/rajipupreti/crm-platform/apps/api/internal/iam/http"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/middleware"
 )
 
 type Server struct {
-	httpServer        *http.Server
-	oidcClient        *auth.OIDCClient
-	authHandler       *auth.Handler
-	authMiddleware    *middleware.AuthenticationMiddleware
-	invitationHandler *invitation.Handler
+	httpServer *http.Server
+
+	oidcClient     *auth.OIDCClient
+	authHandler    *auth.Handler
+	authMiddleware *middleware.AuthenticationMiddleware
+
+	tenantHandler       *iamhttp.TenantHandler
+	invitationHandler   *iamhttp.InvitationHandler
+	tenantSwitchHandler *iamhttp.TenantSwitchHandler
 }
 
 func New(
-	address string,
+	httpAddress string,
 	oidcClient *auth.OIDCClient,
 	authHandler *auth.Handler,
 	authMiddleware *middleware.AuthenticationMiddleware,
-	invitationHandler *invitation.Handler,
+	tenantHandler *iamhttp.TenantHandler,
+	invitationHandler *iamhttp.InvitationHandler,
+	tenantSwitchHandler *iamhttp.TenantSwitchHandler,
 ) *Server {
 	server := &Server{
-		oidcClient:        oidcClient,
-		authHandler:       authHandler,
-		authMiddleware:    authMiddleware,
-		invitationHandler: invitationHandler,
+		oidcClient:          oidcClient,
+		authHandler:         authHandler,
+		authMiddleware:      authMiddleware,
+		tenantHandler:       tenantHandler,
+		invitationHandler:   invitationHandler,
+		tenantSwitchHandler: tenantSwitchHandler,
 	}
 
 	mux := http.NewServeMux()
 
+	server.registerHealthRoutes(mux)
+	server.registerAuthenticationRoutes(mux)
+	server.registerIAMRoutes(mux)
+	server.registerSwaggerRoutes(mux)
+
+	server.httpServer = &http.Server{
+		Addr:              httpAddress,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
+	return server
+}
+
+func (s *Server) registerHealthRoutes(
+	mux *http.ServeMux,
+) {
 	mux.HandleFunc(
 		"GET /health",
-		server.health,
+		s.health,
 	)
 
 	mux.HandleFunc(
 		"GET /health/auth",
-		server.authHealth,
+		s.authHealth,
 	)
+}
 
+func (s *Server) registerAuthenticationRoutes(
+	mux *http.ServeMux,
+) {
 	mux.HandleFunc(
 		"GET /auth/login",
-		server.authHandler.Login,
+		s.authHandler.Login,
 	)
 
 	mux.HandleFunc(
 		"GET /auth/callback",
-		server.authHandler.Callback,
+		s.authHandler.Callback,
 	)
 
 	mux.Handle(
 		"GET /auth/me",
-		server.authMiddleware.Require(
+		s.authMiddleware.Require(
 			http.HandlerFunc(
-				server.authHandler.Me,
+				s.authHandler.Me,
 			),
 		),
 	)
 
 	mux.HandleFunc(
 		"POST /auth/logout",
-		server.authHandler.Logout,
+		s.authHandler.Logout,
 	)
+}
+
+func (s *Server) registerIAMRoutes(
+	mux *http.ServeMux,
+) {
+	mux.Handle(
+		"GET /api/v1/tenants",
+		s.authMiddleware.Require(
+			http.HandlerFunc(
+				s.tenantHandler.ListTenants,
+			),
+		),
+	)
+
+	mux.Handle(
+		"POST /api/v1/tenants/{tenantId}/switch",
+		s.authMiddleware.Require(
+			http.HandlerFunc(
+				s.tenantSwitchHandler.SwitchTenant,
+			),
+		),
+	)
+
+	mux.Handle(
+		"POST /api/v1/tenant/invitations",
+		s.authMiddleware.Require(
+			http.HandlerFunc(
+				s.invitationHandler.CreateInvitation,
+			),
+		),
+	)
+
+	mux.Handle(
+		"POST /api/v1/invitations/accept",
+		s.authMiddleware.Require(
+			http.HandlerFunc(
+				s.invitationHandler.AcceptInvitation,
+			),
+		),
+	)
+}
+
+func (s *Server) registerSwaggerRoutes(
+	mux *http.ServeMux,
+) {
 	mux.HandleFunc(
 		"GET /swagger",
-		func(w http.ResponseWriter, r *http.Request) {
+		func(
+			w http.ResponseWriter,
+			r *http.Request,
+		) {
 			http.Redirect(
 				w,
 				r,
@@ -84,37 +164,11 @@ func New(
 	mux.Handle(
 		"GET /swagger/",
 		httpSwagger.Handler(
-			httpSwagger.URL("/swagger/doc.json"),
-		),
-	)
-
-	mux.Handle(
-		"POST /api/v1/tenant/invitations",
-		authMiddleware.Require(
-			http.HandlerFunc(
-				invitationHandler.Create,
+			httpSwagger.URL(
+				"/swagger/doc.json",
 			),
 		),
 	)
-
-	mux.Handle(
-		"POST /api/v1/invitations/accept",
-		authMiddleware.Require(
-			http.HandlerFunc(
-				invitationHandler.Accept,
-			),
-		),
-	)
-	server.httpServer = &http.Server{
-		Addr:              address,
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      15 * time.Second,
-		IdleTimeout:       60 * time.Second,
-	}
-
-	return server
 }
 
 func (s *Server) HTTPServer() *http.Server {
@@ -135,8 +189,8 @@ func (s *Server) health(
 	httpresponse.JSON(
 		w,
 		http.StatusOK,
-		map[string]string{
-			"status": "ok",
+		httpresponse.HealthResponse{
+			Status: "ok",
 		},
 	)
 }
@@ -155,11 +209,11 @@ func (s *Server) authHealth(
 	httpresponse.JSON(
 		w,
 		http.StatusOK,
-		map[string]string{
-			"status":      "ok",
-			"issuer":      s.oidcClient.IssuerURL,
-			"clientId":    s.oidcClient.OAuth2Config.ClientID,
-			"redirectUrl": s.oidcClient.OAuth2Config.RedirectURL,
+		httpresponse.DependencyHealthResponse{
+			Status:      "ok",
+			Issuer:      s.oidcClient.IssuerURL,
+			ClientID:    s.oidcClient.OAuth2Config.ClientID,
+			RedirectURL: s.oidcClient.OAuth2Config.RedirectURL,
 		},
 	)
 }

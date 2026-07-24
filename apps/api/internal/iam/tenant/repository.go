@@ -28,4 +28,9 @@ type Repository interface {
 		ctx context.Context,
 		userID string,
 	) ([]Tenant, error)
+
+	ListAccessByUserID(
+		ctx context.Context,
+		userID string,
+	) ([]Access, error)
 }

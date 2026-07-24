@@ -182,3 +182,38 @@ func validateAccessibleTenant(
 		)
 	}
 }
+
+func (s *Service) ListAccessByUserID(
+	ctx context.Context,
+	userID string,
+	currentTenantID string,
+) ([]Access, error) {
+	userID = strings.TrimSpace(userID)
+
+	currentTenantID = strings.TrimSpace(
+		currentTenantID,
+	)
+
+	if userID == "" {
+		return nil, ErrInvalidInput
+	}
+
+	accesses, err := s.repository.ListAccessByUserID(
+		ctx,
+		userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"list user tenant access: %w",
+			err,
+		)
+	}
+
+	for index := range accesses {
+		accesses[index].Current =
+			accesses[index].Tenant.ID ==
+				currentTenantID
+	}
+
+	return accesses, nil
+}
