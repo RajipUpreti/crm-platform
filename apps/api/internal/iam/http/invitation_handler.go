@@ -41,6 +41,10 @@ type AcceptInvitationRequest struct {
 	Token string `json:"token"`
 }
 
+type InvitationListResponse struct {
+	Invitations []invitation.Invitation `json:"invitations"`
+}
+
 // CreateInvitation creates a pending tenant invitation.
 //
 //	@Summary		Create tenant invitation
@@ -142,6 +146,172 @@ func (h *InvitationHandler) CreateInvitation(
 		http.StatusCreated,
 		created,
 	)
+}
+
+// ListInvitations lists invitations for the current tenant.
+//
+//	@Summary		List tenant invitations
+//	@Description	Returns invitations for the current tenant with optional effective-status filtering.
+//	@Tags			Invitations
+//	@Produce		json
+//	@Security		CookieAuth
+//	@Param			status	query		string	false	"Invitation status"	Enums(PENDING,ACCEPTED,REVOKED,EXPIRED)
+//	@Success		200		{object}	InvitationListResponse
+//	@Failure		400		{object}	httpresponse.ErrorResponse
+//	@Failure		401		{object}	httpresponse.ErrorResponse
+//	@Failure		403		{object}	httpresponse.ErrorResponse
+//	@Failure		500		{object}	httpresponse.ErrorResponse
+//	@Router			/api/v1/invitations [get]
+func (h *InvitationHandler) ListInvitations(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	authentication, err := requestcontext.AuthenticationFromContext(
+		r.Context(),
+	)
+	if err != nil {
+		httpresponse.Error(
+			w,
+			http.StatusUnauthorized,
+			"authentication_required",
+			"authentication is required",
+		)
+		return
+	}
+
+	var status *invitation.Status
+	if value := strings.TrimSpace(
+		r.URL.Query().Get("status"),
+	); value != "" {
+		parsed := invitation.Status(value)
+		status = &parsed
+	}
+
+	invitations, err := h.service.ListByTenantID(
+		r.Context(),
+		authentication.Tenant.ID,
+		status,
+	)
+	if err != nil {
+		if errors.Is(err, invitation.ErrInvalidInput) {
+			httpresponse.Error(
+				w,
+				http.StatusBadRequest,
+				"invalid_invitation_status",
+				"invitation status is invalid",
+			)
+			return
+		}
+
+		log.Printf("list invitations: %v", err)
+		httpresponse.Error(
+			w,
+			http.StatusInternalServerError,
+			"invitation_listing_failed",
+			"could not list invitations",
+		)
+		return
+	}
+
+	httpresponse.JSON(
+		w,
+		http.StatusOK,
+		InvitationListResponse{
+			Invitations: invitations,
+		},
+	)
+}
+
+// RevokeInvitation revokes a pending tenant invitation.
+//
+//	@Summary		Revoke tenant invitation
+//	@Description	Revokes a pending invitation belonging to the current tenant.
+//	@Tags			Invitations
+//	@Produce		json
+//	@Security		CookieAuth
+//	@Param			invitationId	path		string	true	"Invitation ID"	format(uuid)
+//	@Success		200				{object}	invitation.Invitation
+//	@Failure		400				{object}	httpresponse.ErrorResponse
+//	@Failure		401				{object}	httpresponse.ErrorResponse
+//	@Failure		403				{object}	httpresponse.ErrorResponse
+//	@Failure		404				{object}	httpresponse.ErrorResponse
+//	@Failure		409				{object}	httpresponse.ErrorResponse
+//	@Failure		500				{object}	httpresponse.ErrorResponse
+//	@Router			/api/v1/invitations/{invitationId}/revoke [post]
+func (h *InvitationHandler) RevokeInvitation(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	authentication, err := requestcontext.AuthenticationFromContext(
+		r.Context(),
+	)
+	if err != nil {
+		httpresponse.Error(
+			w,
+			http.StatusUnauthorized,
+			"authentication_required",
+			"authentication is required",
+		)
+		return
+	}
+
+	revoked, err := h.service.RevokeForTenant(
+		r.Context(),
+		strings.TrimSpace(r.PathValue("invitationId")),
+		authentication.Tenant.ID,
+	)
+	if err != nil {
+		writeInvitationManagementError(w, err)
+		return
+	}
+
+	httpresponse.JSON(w, http.StatusOK, revoked)
+}
+
+// ResendInvitation rotates the token and expiry for a tenant invitation.
+//
+//	@Summary		Resend tenant invitation
+//	@Description	Generates a new token, invalidates the old link, and extends the invitation expiry.
+//	@Tags			Invitations
+//	@Produce		json
+//	@Security		CookieAuth
+//	@Param			invitationId	path		string	true	"Invitation ID"	format(uuid)
+//	@Success		200				{object}	invitation.CreatedInvitation
+//	@Failure		400				{object}	httpresponse.ErrorResponse
+//	@Failure		401				{object}	httpresponse.ErrorResponse
+//	@Failure		403				{object}	httpresponse.ErrorResponse
+//	@Failure		404				{object}	httpresponse.ErrorResponse
+//	@Failure		409				{object}	httpresponse.ErrorResponse
+//	@Failure		500				{object}	httpresponse.ErrorResponse
+//	@Router			/api/v1/invitations/{invitationId}/resend [post]
+func (h *InvitationHandler) ResendInvitation(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	authentication, err := requestcontext.AuthenticationFromContext(
+		r.Context(),
+	)
+	if err != nil {
+		httpresponse.Error(
+			w,
+			http.StatusUnauthorized,
+			"authentication_required",
+			"authentication is required",
+		)
+		return
+	}
+
+	resent, err := h.service.ResendForTenant(
+		r.Context(),
+		strings.TrimSpace(r.PathValue("invitationId")),
+		authentication.Tenant.ID,
+	)
+	if err != nil {
+		writeInvitationManagementError(w, err)
+		return
+	}
+
+	httpresponse.JSON(w, http.StatusOK, resent)
 }
 
 // AcceptInvitation accepts an invitation for the authenticated user.
@@ -298,4 +468,68 @@ func (h *InvitationHandler) AcceptInvitation(
 		http.StatusOK,
 		createdMembership,
 	)
+}
+
+func writeInvitationManagementError(
+	w http.ResponseWriter,
+	err error,
+) {
+	switch {
+	case errors.Is(err, invitation.ErrInvalidInput):
+		httpresponse.Error(
+			w,
+			http.StatusBadRequest,
+			"invalid_invitation",
+			"invitation request is invalid",
+		)
+
+	case errors.Is(err, invitation.ErrNotFound):
+		httpresponse.Error(
+			w,
+			http.StatusNotFound,
+			"invitation_not_found",
+			"invitation was not found",
+		)
+
+	case errors.Is(err, invitation.ErrAlreadyAccepted):
+		httpresponse.Error(
+			w,
+			http.StatusConflict,
+			"invitation_already_accepted",
+			"invitation has already been accepted",
+		)
+
+	case errors.Is(err, invitation.ErrRevoked):
+		httpresponse.Error(
+			w,
+			http.StatusConflict,
+			"invitation_already_revoked",
+			"invitation has already been revoked",
+		)
+
+	case errors.Is(err, invitation.ErrExpired):
+		httpresponse.Error(
+			w,
+			http.StatusConflict,
+			"invitation_expired",
+			"invitation has expired",
+		)
+
+	case errors.Is(err, invitation.ErrAlreadyPending):
+		httpresponse.Error(
+			w,
+			http.StatusConflict,
+			"invitation_already_pending",
+			"a pending invitation already exists",
+		)
+
+	default:
+		log.Printf("manage invitation: %v", err)
+		httpresponse.Error(
+			w,
+			http.StatusInternalServerError,
+			"invitation_update_failed",
+			"could not update invitation",
+		)
+	}
 }

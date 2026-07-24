@@ -76,6 +76,13 @@ definitions:
         - ADMIN
         - MEMBER
     type: object
+  iamhttp.InvitationListResponse:
+    properties:
+      invitations:
+        items:
+          $ref: '#/definitions/invitation.Invitation'
+        type: array
+    type: object
   iamhttp.MemberListResponse:
     properties:
       members:
@@ -377,6 +384,141 @@ info:
   title: CRM Platform API
   version: "1.0"
 paths:
+  /api/v1/invitations:
+    get:
+      description: Returns invitations for the current tenant with optional effective-status
+        filtering.
+      parameters:
+      - description: Invitation status
+        enum:
+        - PENDING
+        - ACCEPTED
+        - REVOKED
+        - EXPIRED
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/iamhttp.InvitationListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: List tenant invitations
+      tags:
+      - Invitations
+  /api/v1/invitations/{invitationId}/resend:
+    post:
+      description: Generates a new token, invalidates the old link, and extends the
+        invitation expiry.
+      parameters:
+      - description: Invitation ID
+        format: uuid
+        in: path
+        name: invitationId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/invitation.CreatedInvitation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: Resend tenant invitation
+      tags:
+      - Invitations
+  /api/v1/invitations/{invitationId}/revoke:
+    post:
+      description: Revokes a pending invitation belonging to the current tenant.
+      parameters:
+      - description: Invitation ID
+        format: uuid
+        in: path
+        name: invitationId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/invitation.Invitation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: Revoke tenant invitation
+      tags:
+      - Invitations
   /api/v1/invitations/accept:
     post:
       consumes:

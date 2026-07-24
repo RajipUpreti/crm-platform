@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -136,6 +137,54 @@ func (r *PostgresRepository) FindByTokenDigest(
 	return found, nil
 }
 
+func (r *PostgresRepository) FindByIDAndTenant(
+	ctx context.Context,
+	invitationID string,
+	tenantID string,
+) (Invitation, error) {
+	const query = `
+		SELECT
+			id::text,
+			tenant_id::text,
+			invited_by_user_id::text,
+			email,
+			role,
+			CASE
+				WHEN status = 'PENDING'
+					AND expires_at <= NOW()
+					THEN 'EXPIRED'
+				ELSE status
+			END,
+			expires_at,
+			accepted_at,
+			created_at,
+			updated_at
+		FROM invitations
+		WHERE id = $1
+		  AND tenant_id = $2
+	`
+
+	found, err := scanInvitation(
+		r.pool.QueryRow(
+			ctx,
+			query,
+			invitationID,
+			tenantID,
+		),
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Invitation{}, ErrNotFound
+	}
+	if err != nil {
+		return Invitation{}, fmt.Errorf(
+			"find tenant invitation: %w",
+			err,
+		)
+	}
+
+	return found, nil
+}
+
 func (r *PostgresRepository) Accept(
 	ctx context.Context,
 	invitationID string,
@@ -259,12 +308,14 @@ func (r *PostgresRepository) Accept(
 			accepted_at = NOW(),
 			updated_at = NOW()
 		WHERE id = $1
+		  AND tenant_id = $2
 	`
 
 	if _, err := tx.Exec(
 		ctx,
 		updateInvitation,
 		invitationID,
+		found.TenantID,
 	); err != nil {
 		return membership.Membership{},
 			fmt.Errorf(
@@ -287,6 +338,7 @@ func (r *PostgresRepository) Accept(
 func (r *PostgresRepository) ListByTenantID(
 	ctx context.Context,
 	tenantID string,
+	status *Status,
 ) ([]Invitation, error) {
 	const query = `
 		SELECT
@@ -295,13 +347,27 @@ func (r *PostgresRepository) ListByTenantID(
 			invited_by_user_id::text,
 			email,
 			role,
-			status,
+			CASE
+				WHEN status = 'PENDING'
+					AND expires_at <= NOW()
+					THEN 'EXPIRED'
+				ELSE status
+			END,
 			expires_at,
 			accepted_at,
 			created_at,
 			updated_at
 		FROM invitations
 		WHERE tenant_id = $1
+		  AND (
+			$2::text IS NULL
+			OR CASE
+				WHEN status = 'PENDING'
+					AND expires_at <= NOW()
+					THEN 'EXPIRED'
+				ELSE status
+			END = $2
+		  )
 		ORDER BY created_at DESC
 	`
 
@@ -309,6 +375,7 @@ func (r *PostgresRepository) ListByTenantID(
 		ctx,
 		query,
 		tenantID,
+		status,
 	)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -336,9 +403,10 @@ func (r *PostgresRepository) ListByTenantID(
 	return result, nil
 }
 
-func (r *PostgresRepository) Revoke(
+func (r *PostgresRepository) RevokeForTenant(
 	ctx context.Context,
 	invitationID string,
+	tenantID string,
 ) (Invitation, error) {
 	const query = `
 		UPDATE invitations
@@ -346,7 +414,9 @@ func (r *PostgresRepository) Revoke(
 			status = 'REVOKED',
 			updated_at = NOW()
 		WHERE id = $1
+		  AND tenant_id = $2
 		  AND status = 'PENDING'
+		  AND expires_at > NOW()
 		RETURNING
 			id::text,
 			tenant_id::text,
@@ -365,6 +435,7 @@ func (r *PostgresRepository) Revoke(
 			ctx,
 			query,
 			invitationID,
+			tenantID,
 		),
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -372,10 +443,74 @@ func (r *PostgresRepository) Revoke(
 	}
 
 	if err != nil {
-		return Invitation{}, err
+		return Invitation{}, fmt.Errorf(
+			"revoke tenant invitation: %w",
+			err,
+		)
 	}
 
 	return revoked, nil
+}
+
+func (r *PostgresRepository) ReplaceToken(
+	ctx context.Context,
+	invitationID string,
+	tenantID string,
+	digest string,
+	expiresAt time.Time,
+) (Invitation, error) {
+	const query = `
+		UPDATE invitations
+		SET
+			token_digest = $3,
+			expires_at = $4,
+			status = 'PENDING',
+			accepted_at = NULL,
+			updated_at = NOW()
+		WHERE id = $1
+		  AND tenant_id = $2
+		  AND status IN ('PENDING', 'EXPIRED')
+		RETURNING
+			id::text,
+			tenant_id::text,
+			invited_by_user_id::text,
+			email,
+			role,
+			status,
+			expires_at,
+			accepted_at,
+			created_at,
+			updated_at
+	`
+
+	replaced, err := scanInvitation(
+		r.pool.QueryRow(
+			ctx,
+			query,
+			invitationID,
+			tenantID,
+			digest,
+			expiresAt,
+		),
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Invitation{}, ErrNotFound
+	}
+	if err != nil {
+		if isConstraintViolation(
+			err,
+			pendingInvitationUniqueIndex,
+		) {
+			return Invitation{}, ErrAlreadyPending
+		}
+
+		return Invitation{}, fmt.Errorf(
+			"replace invitation token: %w",
+			err,
+		)
+	}
+
+	return replaced, nil
 }
 
 type rowScanner interface {

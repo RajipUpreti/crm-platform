@@ -153,6 +153,42 @@ func (s *Server) registerIAMRoutes(
 	)
 
 	mux.Handle(
+		"GET /api/v1/invitations",
+		s.authMiddleware.Require(
+			s.authorizationGuard.Require(
+				permission.InvitationRead,
+				http.HandlerFunc(
+					s.invitationHandler.ListInvitations,
+				),
+			),
+		),
+	)
+
+	mux.Handle(
+		"POST /api/v1/invitations/{invitationId}/revoke",
+		s.authMiddleware.Require(
+			s.authorizationGuard.Require(
+				permission.InvitationRevoke,
+				http.HandlerFunc(
+					s.invitationHandler.RevokeInvitation,
+				),
+			),
+		),
+	)
+
+	mux.Handle(
+		"POST /api/v1/invitations/{invitationId}/resend",
+		s.authMiddleware.Require(
+			s.authorizationGuard.Require(
+				permission.MemberInvite,
+				http.HandlerFunc(
+					s.invitationHandler.ResendInvitation,
+				),
+			),
+		),
+	)
+
+	mux.Handle(
 		"GET /api/v1/members",
 		s.authMiddleware.Require(
 			s.authorizationGuard.Require(

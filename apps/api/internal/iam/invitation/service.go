@@ -1,10 +1,3 @@
-// @Description Requires the member.invite permission in the current tenant.
-// CreateInvitation creates a pending tenant invitation.
-//
-//	@Summary		Create tenant invitation
-//	@Description	Invites a user to the current tenant.
-//	@Description	Requires the member.invite permission in the current tenant.
-//	@Tags			Invitations
 package invitation
 
 import (
@@ -136,6 +129,164 @@ func (s *Service) Create(
 	}, nil
 }
 
+func (s *Service) ListByTenantID(
+	ctx context.Context,
+	tenantID string,
+	status *Status,
+) ([]Invitation, error) {
+	tenantID = strings.TrimSpace(tenantID)
+	if tenantID == "" {
+		return nil, ErrInvalidInput
+	}
+
+	if status != nil && !isValidStatus(*status) {
+		return nil, ErrInvalidInput
+	}
+
+	found, err := s.repository.ListByTenantID(
+		ctx,
+		tenantID,
+		status,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"list invitations: %w",
+			err,
+		)
+	}
+
+	now := s.now().UTC()
+	result := make([]Invitation, 0, len(found))
+	for _, current := range found {
+		current = invitationWithEffectiveStatus(
+			current,
+			now,
+		)
+		if status == nil || current.Status == *status {
+			result = append(result, current)
+		}
+	}
+
+	return result, nil
+}
+
+func (s *Service) RevokeForTenant(
+	ctx context.Context,
+	invitationID string,
+	tenantID string,
+) (Invitation, error) {
+	found, err := s.findForTenant(
+		ctx,
+		invitationID,
+		tenantID,
+	)
+	if err != nil {
+		return Invitation{}, err
+	}
+
+	switch found.Status {
+	case StatusPending:
+	case StatusAccepted:
+		return Invitation{}, ErrAlreadyAccepted
+	case StatusRevoked:
+		return Invitation{}, ErrRevoked
+	case StatusExpired:
+		return Invitation{}, ErrExpired
+	default:
+		return Invitation{}, ErrInvalidInput
+	}
+
+	revoked, err := s.repository.RevokeForTenant(
+		ctx,
+		found.ID,
+		found.TenantID,
+	)
+	if err != nil {
+		return Invitation{}, fmt.Errorf(
+			"revoke invitation: %w",
+			err,
+		)
+	}
+
+	return revoked, nil
+}
+
+func (s *Service) ResendForTenant(
+	ctx context.Context,
+	invitationID string,
+	tenantID string,
+) (CreatedInvitation, error) {
+	found, err := s.findForTenant(
+		ctx,
+		invitationID,
+		tenantID,
+	)
+	if err != nil {
+		return CreatedInvitation{}, err
+	}
+
+	switch found.Status {
+	case StatusPending, StatusExpired:
+	case StatusAccepted:
+		return CreatedInvitation{}, ErrAlreadyAccepted
+	case StatusRevoked:
+		return CreatedInvitation{}, ErrRevoked
+	default:
+		return CreatedInvitation{}, ErrInvalidInput
+	}
+
+	token, err := generateToken()
+	if err != nil {
+		return CreatedInvitation{}, err
+	}
+
+	expiresAt := s.now().UTC().Add(s.ttl)
+	replaced, err := s.repository.ReplaceToken(
+		ctx,
+		found.ID,
+		found.TenantID,
+		tokenDigest(token),
+		expiresAt,
+	)
+	if err != nil {
+		return CreatedInvitation{}, fmt.Errorf(
+			"resend invitation: %w",
+			err,
+		)
+	}
+
+	return CreatedInvitation{
+		Invitation: replaced,
+		Token:      token,
+	}, nil
+}
+
+func (s *Service) findForTenant(
+	ctx context.Context,
+	invitationID string,
+	tenantID string,
+) (Invitation, error) {
+	invitationID = strings.TrimSpace(invitationID)
+	tenantID = strings.TrimSpace(tenantID)
+	if invitationID == "" || tenantID == "" {
+		return Invitation{}, ErrInvalidInput
+	}
+
+	found, err := s.repository.FindByIDAndTenant(
+		ctx,
+		invitationID,
+		tenantID,
+	)
+	if err != nil {
+		return Invitation{}, err
+	}
+
+	return invitationWithEffectiveStatus(
+		found,
+		s.now().UTC(),
+	), nil
+}
+
 func (s *Service) Accept(
 	ctx context.Context,
 	input AcceptInput,
@@ -202,4 +353,28 @@ func (s *Service) Accept(
 	}
 
 	return createdMembership, nil
+}
+
+func invitationWithEffectiveStatus(
+	value Invitation,
+	now time.Time,
+) Invitation {
+	if value.Status == StatusPending &&
+		!value.ExpiresAt.After(now) {
+		value.Status = StatusExpired
+	}
+
+	return value
+}
+
+func isValidStatus(status Status) bool {
+	switch status {
+	case StatusPending,
+		StatusAccepted,
+		StatusRevoked,
+		StatusExpired:
+		return true
+	default:
+		return false
+	}
 }

@@ -22,6 +22,69 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/v1/invitations": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns invitations for the current tenant with optional effective-status filtering.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Invitations"
+                ],
+                "summary": "List tenant invitations",
+                "parameters": [
+                    {
+                        "enum": [
+                            "PENDING",
+                            "ACCEPTED",
+                            "REVOKED",
+                            "EXPIRED"
+                        ],
+                        "type": "string",
+                        "description": "Invitation status",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/iamhttp.InvitationListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/invitations/accept": {
             "post": {
                 "security": [
@@ -90,6 +153,148 @@ const docTemplate = `{
                     },
                     "410": {
                         "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/invitations/{invitationId}/resend": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Generates a new token, invalidates the old link, and extends the invitation expiry.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Invitations"
+                ],
+                "summary": "Resend tenant invitation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Invitation ID",
+                        "name": "invitationId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/invitation.CreatedInvitation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/invitations/{invitationId}/revoke": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Revokes a pending invitation belonging to the current tenant.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Invitations"
+                ],
+                "summary": "Revoke tenant invitation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Invitation ID",
+                        "name": "invitationId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/invitation.Invitation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/httpresponse.ErrorResponse"
                         }
@@ -874,6 +1079,17 @@ const docTemplate = `{
                             "$ref": "#/definitions/membership.Role"
                         }
                     ]
+                }
+            }
+        },
+        "iamhttp.InvitationListResponse": {
+            "type": "object",
+            "properties": {
+                "invitations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/invitation.Invitation"
+                    }
                 }
             }
         },

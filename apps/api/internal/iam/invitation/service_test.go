@@ -18,10 +18,28 @@ type fakeRepository struct {
 	findResult Invitation
 	findError  error
 
+	findByIDResult Invitation
+	findByIDError  error
+
+	listResult []Invitation
+	listError  error
+
 	acceptInvitationID string
 	acceptUserID       string
 	acceptResult       membership.Membership
 	acceptError        error
+
+	revokeResult   Invitation
+	revokeError    error
+	revokeID       string
+	revokeTenantID string
+
+	replaceResult    Invitation
+	replaceError     error
+	replaceID        string
+	replaceTenantID  string
+	replaceDigest    string
+	replaceExpiresAt time.Time
 }
 
 func (f *fakeRepository) Create(
@@ -43,8 +61,17 @@ func (f *fakeRepository) FindByTokenDigest(
 func (f *fakeRepository) ListByTenantID(
 	ctx context.Context,
 	tenantID string,
+	status *Status,
 ) ([]Invitation, error) {
-	return nil, nil
+	return f.listResult, f.listError
+}
+
+func (f *fakeRepository) FindByIDAndTenant(
+	ctx context.Context,
+	invitationID string,
+	tenantID string,
+) (Invitation, error) {
+	return f.findByIDResult, f.findByIDError
 }
 
 func (f *fakeRepository) Accept(
@@ -58,11 +85,28 @@ func (f *fakeRepository) Accept(
 	return f.acceptResult, f.acceptError
 }
 
-func (f *fakeRepository) Revoke(
+func (f *fakeRepository) RevokeForTenant(
 	ctx context.Context,
 	invitationID string,
+	tenantID string,
 ) (Invitation, error) {
-	return Invitation{}, ErrNotFound
+	f.revokeID = invitationID
+	f.revokeTenantID = tenantID
+	return f.revokeResult, f.revokeError
+}
+
+func (f *fakeRepository) ReplaceToken(
+	ctx context.Context,
+	invitationID string,
+	tenantID string,
+	digest string,
+	expiresAt time.Time,
+) (Invitation, error) {
+	f.replaceID = invitationID
+	f.replaceTenantID = tenantID
+	f.replaceDigest = digest
+	f.replaceExpiresAt = expiresAt
+	return f.replaceResult, f.replaceError
 }
 
 func TestServiceCreateCreatesInvitation(
@@ -616,5 +660,225 @@ func TestServiceAcceptRejectsRevokedInvitation(
 			"error = %v; expected ErrRevoked",
 			err,
 		)
+	}
+}
+
+func TestServiceListAppliesExpiryAndStatusFilter(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	fixedNow := time.Date(
+		2026,
+		time.July,
+		24,
+		4,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
+	repository := &fakeRepository{
+		listResult: []Invitation{
+			{
+				ID:        "expired-invitation",
+				Status:    StatusPending,
+				ExpiresAt: fixedNow,
+			},
+			{
+				ID:        "pending-invitation",
+				Status:    StatusPending,
+				ExpiresAt: fixedNow.Add(time.Hour),
+			},
+		},
+	}
+	service, _ := NewService(repository, 7*24*time.Hour)
+	service.now = func() time.Time { return fixedNow }
+	status := StatusExpired
+
+	result, err := service.ListByTenantID(
+		context.Background(),
+		"tenant-id",
+		&status,
+	)
+	if err != nil {
+		t.Fatalf("ListByTenantID() error = %v", err)
+	}
+	if len(result) != 1 ||
+		result[0].ID != "expired-invitation" ||
+		result[0].Status != StatusExpired {
+		t.Fatalf("result = %#v; expected expired invitation", result)
+	}
+}
+
+func TestServiceRevokeUsesTenantScopedMutation(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	repository := &fakeRepository{
+		findByIDResult: Invitation{
+			ID:        "invitation-id",
+			TenantID:  "tenant-id",
+			Status:    StatusPending,
+			ExpiresAt: time.Now().Add(time.Hour),
+		},
+		revokeResult: Invitation{
+			ID:       "invitation-id",
+			TenantID: "tenant-id",
+			Status:   StatusRevoked,
+		},
+	}
+	service, _ := NewService(repository, 7*24*time.Hour)
+
+	_, err := service.RevokeForTenant(
+		context.Background(),
+		"invitation-id",
+		"tenant-id",
+	)
+	if err != nil {
+		t.Fatalf("RevokeForTenant() error = %v", err)
+	}
+	if repository.revokeID != "invitation-id" ||
+		repository.revokeTenantID != "tenant-id" {
+		t.Fatalf(
+			"revoke scope = (%q, %q)",
+			repository.revokeID,
+			repository.revokeTenantID,
+		)
+	}
+}
+
+func TestServiceRevokeRejectsAcceptedInvitation(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	repository := &fakeRepository{
+		findByIDResult: Invitation{
+			ID:       "invitation-id",
+			TenantID: "tenant-id",
+			Status:   StatusAccepted,
+		},
+	}
+	service, _ := NewService(repository, 7*24*time.Hour)
+
+	_, err := service.RevokeForTenant(
+		context.Background(),
+		"invitation-id",
+		"tenant-id",
+	)
+	if !errors.Is(err, ErrAlreadyAccepted) {
+		t.Fatalf("error = %v; expected ErrAlreadyAccepted", err)
+	}
+	if repository.revokeID != "" {
+		t.Fatal("accepted invitation was revoked")
+	}
+}
+
+func TestServiceTenantIsolationReturnsNotFound(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	repository := &fakeRepository{
+		findByIDError: ErrNotFound,
+	}
+	service, _ := NewService(repository, 7*24*time.Hour)
+
+	_, err := service.RevokeForTenant(
+		context.Background(),
+		"other-tenant-invitation",
+		"tenant-id",
+	)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("error = %v; expected ErrNotFound", err)
+	}
+}
+
+func TestServiceResendRotatesTokenAndExtendsExpiry(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	fixedNow := time.Date(
+		2026,
+		time.July,
+		24,
+		4,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
+	repository := &fakeRepository{
+		findByIDResult: Invitation{
+			ID:        "invitation-id",
+			TenantID:  "tenant-id",
+			Status:    StatusPending,
+			ExpiresAt: fixedNow.Add(time.Hour),
+		},
+		replaceResult: Invitation{
+			ID:        "invitation-id",
+			TenantID:  "tenant-id",
+			Status:    StatusPending,
+			ExpiresAt: fixedNow.Add(7 * 24 * time.Hour),
+		},
+	}
+	service, _ := NewService(repository, 7*24*time.Hour)
+	service.now = func() time.Time { return fixedNow }
+
+	result, err := service.ResendForTenant(
+		context.Background(),
+		"invitation-id",
+		"tenant-id",
+	)
+	if err != nil {
+		t.Fatalf("ResendForTenant() error = %v", err)
+	}
+	if result.Token == "" {
+		t.Fatal("resend returned an empty token")
+	}
+	if repository.replaceDigest != tokenDigest(result.Token) {
+		t.Fatal("repository did not receive the new token digest")
+	}
+	if repository.replaceDigest == tokenDigest("old-token") {
+		t.Fatal("old token digest was not replaced")
+	}
+
+	expectedExpiry := fixedNow.Add(7 * 24 * time.Hour)
+	if !repository.replaceExpiresAt.Equal(expectedExpiry) {
+		t.Fatalf(
+			"expiry = %v; expected %v",
+			repository.replaceExpiresAt,
+			expectedExpiry,
+		)
+	}
+}
+
+func TestServiceResendRejectsRevokedInvitation(
+	t *testing.T,
+) {
+	t.Parallel()
+
+	repository := &fakeRepository{
+		findByIDResult: Invitation{
+			ID:       "invitation-id",
+			TenantID: "tenant-id",
+			Status:   StatusRevoked,
+		},
+	}
+	service, _ := NewService(repository, 7*24*time.Hour)
+
+	_, err := service.ResendForTenant(
+		context.Background(),
+		"invitation-id",
+		"tenant-id",
+	)
+	if !errors.Is(err, ErrRevoked) {
+		t.Fatalf("error = %v; expected ErrRevoked", err)
+	}
+	if repository.replaceID != "" {
+		t.Fatal("revoked invitation token was replaced")
 	}
 }
