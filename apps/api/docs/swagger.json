@@ -19,6 +19,334 @@
     "host": "localhost:8080",
     "basePath": "/",
     "paths": {
+        "/api/v1/invitations/accept": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Accepts an invitation when its email matches the authenticated CRM user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Invitations"
+                ],
+                "summary": "Accept tenant invitation",
+                "parameters": [
+                    {
+                        "description": "Invitation token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/iamhttp.AcceptInvitationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/membership.Membership"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tenant/invitations": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Invites a user to the current tenant. OWNER or ADMIN membership is required.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Invitations"
+                ],
+                "summary": "Create tenant invitation",
+                "parameters": [
+                    {
+                        "description": "Invitation details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/iamhttp.CreateInvitationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/invitation.CreatedInvitation"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tenants": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns active tenant memberships for the authenticated user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tenants"
+                ],
+                "summary": "List available tenants",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/iamhttp.TenantListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/tenants/{tenantId}/switch": {
+            "post": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Validates active membership, rotates the application session, and selects the requested tenant.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Tenants"
+                ],
+                "summary": "Switch current tenant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Tenant ID",
+                        "name": "tenantId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/iamhttp.TenantSwitchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/callback": {
+            "get": {
+                "description": "Validates the Keycloak response, creates a session cookie, and redirects to the frontend.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Complete OIDC login",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "OIDC authorization code",
+                        "name": "code",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "One-time OIDC state value",
+                        "name": "state",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "OIDC provider error code",
+                        "name": "error",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "OIDC provider error description",
+                        "name": "error_description",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "303": {
+                        "description": "Session cookie set and browser redirected to the frontend",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/auth.SwaggerErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/auth.SwaggerErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/auth.SwaggerErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/auth.SwaggerErrorResponse"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/auth.SwaggerErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "get": {
                 "description": "Creates a one-time OIDC transaction and redirects the browser to Keycloak.",
@@ -161,8 +489,13 @@
             "type": "object",
             "properties": {
                 "expiresAt": {
-                    "type": "string",
-                    "example": "2026-07-22T01:00:00Z"
+                    "type": "string"
+                },
+                "membership": {
+                    "$ref": "#/definitions/membership.Membership"
+                },
+                "tenant": {
+                    "$ref": "#/definitions/tenant.Tenant"
                 },
                 "user": {
                     "$ref": "#/definitions/user.User"
@@ -222,12 +555,294 @@
                 }
             }
         },
+        "httpresponse.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "$ref": "#/definitions/httpresponse.ErrorDetail"
+                }
+            }
+        },
         "httpresponse.HealthResponse": {
             "type": "object",
             "properties": {
                 "status": {
                     "type": "string",
                     "example": "ok"
+                }
+            }
+        },
+        "iamhttp.AcceptInvitationRequest": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "iamhttp.CreateInvitationRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "role": {
+                    "enum": [
+                        "ADMIN",
+                        "MEMBER"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/membership.Role"
+                        }
+                    ]
+                }
+            }
+        },
+        "iamhttp.TenantListResponse": {
+            "type": "object",
+            "properties": {
+                "tenants": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tenant.Access"
+                    }
+                }
+            }
+        },
+        "iamhttp.TenantSwitchResponse": {
+            "type": "object",
+            "properties": {
+                "membership": {
+                    "$ref": "#/definitions/membership.Membership"
+                },
+                "tenant": {
+                    "$ref": "#/definitions/tenant.Tenant"
+                }
+            }
+        },
+        "invitation.CreatedInvitation": {
+            "type": "object",
+            "properties": {
+                "invitation": {
+                    "$ref": "#/definitions/invitation.Invitation"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "invitation.Invitation": {
+            "type": "object",
+            "properties": {
+                "acceptedAt": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "invitedByUserId": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "role": {
+                    "enum": [
+                        "ADMIN",
+                        "MEMBER"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/membership.Role"
+                        }
+                    ]
+                },
+                "status": {
+                    "enum": [
+                        "PENDING",
+                        "ACCEPTED",
+                        "REVOKED",
+                        "EXPIRED"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/invitation.Status"
+                        }
+                    ]
+                },
+                "tenantId": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "invitation.Status": {
+            "type": "string",
+            "enum": [
+                "PENDING",
+                "ACCEPTED",
+                "REVOKED",
+                "EXPIRED"
+            ],
+            "x-enum-varnames": [
+                "StatusPending",
+                "StatusAccepted",
+                "StatusRevoked",
+                "StatusExpired"
+            ]
+        },
+        "membership.Membership": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "joinedAt": {
+                    "type": "string"
+                },
+                "role": {
+                    "enum": [
+                        "OWNER",
+                        "ADMIN",
+                        "MEMBER"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/membership.Role"
+                        }
+                    ]
+                },
+                "status": {
+                    "enum": [
+                        "ACTIVE",
+                        "INVITED",
+                        "SUSPENDED",
+                        "LEFT"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/membership.Status"
+                        }
+                    ]
+                },
+                "tenantId": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "userId": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "membership.Role": {
+            "type": "string",
+            "enum": [
+                "OWNER",
+                "ADMIN",
+                "MEMBER"
+            ],
+            "x-enum-varnames": [
+                "RoleOwner",
+                "RoleAdmin",
+                "RoleMember"
+            ]
+        },
+        "membership.Status": {
+            "type": "string",
+            "enum": [
+                "ACTIVE",
+                "INVITED",
+                "SUSPENDED",
+                "LEFT"
+            ],
+            "x-enum-varnames": [
+                "StatusActive",
+                "StatusInvited",
+                "StatusSuspended",
+                "StatusLeft"
+            ]
+        },
+        "tenant.Access": {
+            "type": "object",
+            "properties": {
+                "current": {
+                    "type": "boolean"
+                },
+                "membership": {
+                    "$ref": "#/definitions/membership.Membership"
+                },
+                "tenant": {
+                    "$ref": "#/definitions/tenant.Tenant"
+                }
+            }
+        },
+        "tenant.Status": {
+            "type": "string",
+            "enum": [
+                "ACTIVE",
+                "SUSPENDED",
+                "DELETED"
+            ],
+            "x-enum-varnames": [
+                "StatusActive",
+                "StatusSuspended",
+                "StatusDeleted"
+            ]
+        },
+        "tenant.Tenant": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Acme Corporation"
+                },
+                "slug": {
+                    "type": "string",
+                    "example": "acme-corporation"
+                },
+                "status": {
+                    "enum": [
+                        "ACTIVE",
+                        "SUSPENDED",
+                        "DELETED"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/tenant.Status"
+                        }
+                    ]
+                },
+                "updatedAt": {
+                    "type": "string"
                 }
             }
         },

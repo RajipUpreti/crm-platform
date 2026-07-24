@@ -3,8 +3,11 @@ definitions:
   auth.CurrentUserResponse:
     properties:
       expiresAt:
-        example: "2026-07-22T01:00:00Z"
         type: string
+      membership:
+        $ref: '#/definitions/membership.Membership'
+      tenant:
+        $ref: '#/definitions/tenant.Tenant'
       user:
         $ref: '#/definitions/user.User'
     type: object
@@ -45,10 +48,199 @@ definitions:
         example: authentication is required
         type: string
     type: object
+  httpresponse.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/httpresponse.ErrorDetail'
+    type: object
   httpresponse.HealthResponse:
     properties:
       status:
         example: ok
+        type: string
+    type: object
+  iamhttp.AcceptInvitationRequest:
+    properties:
+      token:
+        type: string
+    type: object
+  iamhttp.CreateInvitationRequest:
+    properties:
+      email:
+        format: email
+        type: string
+      role:
+        allOf:
+        - $ref: '#/definitions/membership.Role'
+        enum:
+        - ADMIN
+        - MEMBER
+    type: object
+  iamhttp.TenantListResponse:
+    properties:
+      tenants:
+        items:
+          $ref: '#/definitions/tenant.Access'
+        type: array
+    type: object
+  iamhttp.TenantSwitchResponse:
+    properties:
+      membership:
+        $ref: '#/definitions/membership.Membership'
+      tenant:
+        $ref: '#/definitions/tenant.Tenant'
+    type: object
+  invitation.CreatedInvitation:
+    properties:
+      invitation:
+        $ref: '#/definitions/invitation.Invitation'
+      token:
+        type: string
+    type: object
+  invitation.Invitation:
+    properties:
+      acceptedAt:
+        type: string
+      createdAt:
+        type: string
+      email:
+        format: email
+        type: string
+      expiresAt:
+        type: string
+      id:
+        format: uuid
+        type: string
+      invitedByUserId:
+        format: uuid
+        type: string
+      role:
+        allOf:
+        - $ref: '#/definitions/membership.Role'
+        enum:
+        - ADMIN
+        - MEMBER
+      status:
+        allOf:
+        - $ref: '#/definitions/invitation.Status'
+        enum:
+        - PENDING
+        - ACCEPTED
+        - REVOKED
+        - EXPIRED
+      tenantId:
+        format: uuid
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  invitation.Status:
+    enum:
+    - PENDING
+    - ACCEPTED
+    - REVOKED
+    - EXPIRED
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusAccepted
+    - StatusRevoked
+    - StatusExpired
+  membership.Membership:
+    properties:
+      createdAt:
+        type: string
+      id:
+        format: uuid
+        type: string
+      joinedAt:
+        type: string
+      role:
+        allOf:
+        - $ref: '#/definitions/membership.Role'
+        enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+      status:
+        allOf:
+        - $ref: '#/definitions/membership.Status'
+        enum:
+        - ACTIVE
+        - INVITED
+        - SUSPENDED
+        - LEFT
+      tenantId:
+        format: uuid
+        type: string
+      updatedAt:
+        type: string
+      userId:
+        format: uuid
+        type: string
+    type: object
+  membership.Role:
+    enum:
+    - OWNER
+    - ADMIN
+    - MEMBER
+    type: string
+    x-enum-varnames:
+    - RoleOwner
+    - RoleAdmin
+    - RoleMember
+  membership.Status:
+    enum:
+    - ACTIVE
+    - INVITED
+    - SUSPENDED
+    - LEFT
+    type: string
+    x-enum-varnames:
+    - StatusActive
+    - StatusInvited
+    - StatusSuspended
+    - StatusLeft
+  tenant.Access:
+    properties:
+      current:
+        type: boolean
+      membership:
+        $ref: '#/definitions/membership.Membership'
+      tenant:
+        $ref: '#/definitions/tenant.Tenant'
+    type: object
+  tenant.Status:
+    enum:
+    - ACTIVE
+    - SUSPENDED
+    - DELETED
+    type: string
+    x-enum-varnames:
+    - StatusActive
+    - StatusSuspended
+    - StatusDeleted
+  tenant.Tenant:
+    properties:
+      createdAt:
+        type: string
+      id:
+        format: uuid
+        type: string
+      name:
+        example: Acme Corporation
+        type: string
+      slug:
+        example: acme-corporation
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/tenant.Status'
+        enum:
+        - ACTIVE
+        - SUSPENDED
+        - DELETED
+      updatedAt:
         type: string
     type: object
   user.Status:
@@ -112,6 +304,221 @@ info:
   title: CRM Platform API
   version: "1.0"
 paths:
+  /api/v1/invitations/accept:
+    post:
+      consumes:
+      - application/json
+      description: Accepts an invitation when its email matches the authenticated
+        CRM user.
+      parameters:
+      - description: Invitation token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/iamhttp.AcceptInvitationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/membership.Membership'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "410":
+          description: Gone
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: Accept tenant invitation
+      tags:
+      - Invitations
+  /api/v1/tenant/invitations:
+    post:
+      consumes:
+      - application/json
+      description: Invites a user to the current tenant. OWNER or ADMIN membership
+        is required.
+      parameters:
+      - description: Invitation details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/iamhttp.CreateInvitationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/invitation.CreatedInvitation'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: Create tenant invitation
+      tags:
+      - Invitations
+  /api/v1/tenants:
+    get:
+      description: Returns active tenant memberships for the authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/iamhttp.TenantListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: List available tenants
+      tags:
+      - Tenants
+  /api/v1/tenants/{tenantId}/switch:
+    post:
+      description: Validates active membership, rotates the application session, and
+        selects the requested tenant.
+      parameters:
+      - description: Tenant ID
+        format: uuid
+        in: path
+        name: tenantId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/iamhttp.TenantSwitchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: Switch current tenant
+      tags:
+      - Tenants
+  /auth/callback:
+    get:
+      description: Validates the Keycloak response, creates a session cookie, and
+        redirects to the frontend.
+      parameters:
+      - description: OIDC authorization code
+        in: query
+        name: code
+        type: string
+      - description: One-time OIDC state value
+        in: query
+        name: state
+        type: string
+      - description: OIDC provider error code
+        in: query
+        name: error
+        type: string
+      - description: OIDC provider error description
+        in: query
+        name: error_description
+        type: string
+      produces:
+      - application/json
+      responses:
+        "303":
+          description: Session cookie set and browser redirected to the frontend
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/auth.SwaggerErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/auth.SwaggerErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/auth.SwaggerErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/auth.SwaggerErrorResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/auth.SwaggerErrorResponse'
+      summary: Complete OIDC login
+      tags:
+      - Authentication
   /auth/login:
     get:
       description: Creates a one-time OIDC transaction and redirects the browser to

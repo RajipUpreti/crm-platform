@@ -204,7 +204,7 @@ services:
         go install github.com/swaggo/swag/cmd/swag@v1.16.6
         swag init \
           --generalInfo main.go \
-          --dir cmd/api,internal/auth,internal/server,internal/httpresponse,internal/user \
+          --dir cmd/api,internal/auth,internal/server,internal/httpresponse,internal/user,internal/iam/http,internal/iam/invitation,internal/iam/membership,internal/iam/tenant \
           --parseInternal \
           --output docs
     profiles:

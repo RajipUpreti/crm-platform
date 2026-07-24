@@ -39,6 +39,7 @@ func New(
 		oidcClient:          oidcClient,
 		authHandler:         authHandler,
 		authMiddleware:      authMiddleware,
+		authorizationGuard:  authorizationGuard,
 		tenantHandler:       tenantHandler,
 		invitationHandler:   invitationHandler,
 		tenantSwitchHandler: tenantSwitchHandler,
@@ -131,10 +132,10 @@ func (s *Server) registerIAMRoutes(
 	)
 
 	mux.Handle(
-		"POST /api/v1/tenant/invitations",
+		"GET /api/v1/tenants",
 		s.authMiddleware.Require(
 			http.HandlerFunc(
-				s.invitationHandler.CreateInvitation,
+				s.tenantHandler.ListTenants,
 			),
 		),
 	)
