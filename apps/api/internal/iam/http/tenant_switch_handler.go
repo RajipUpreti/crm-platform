@@ -54,6 +54,7 @@ type TenantSwitchResponse struct {
 //	@Description	Validates active membership, rotates the application session, and selects the requested tenant.
 //	@Tags			Tenants
 //	@Produce		json
+//	@Security		CookieAuth
 //	@Param			tenantId	path		string	true	"Tenant ID"	format(uuid)
 //	@Success		200			{object}	TenantSwitchResponse
 //	@Failure		400			{object}	httpresponse.ErrorResponse

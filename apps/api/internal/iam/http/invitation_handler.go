@@ -48,6 +48,7 @@ type AcceptInvitationRequest struct {
 //	@Tags			Invitations
 //	@Accept			json
 //	@Produce		json
+//	@Security		CookieAuth
 //	@Param			request	body		CreateInvitationRequest	true	"Invitation details"
 //	@Success		201		{object}	invitation.CreatedInvitation
 //	@Failure		400		{object}	httpresponse.ErrorResponse
@@ -69,19 +70,6 @@ func (h *InvitationHandler) CreateInvitation(
 			http.StatusUnauthorized,
 			"authentication_required",
 			"authentication is required",
-		)
-		return
-	}
-
-	if authentication.Membership.Role !=
-		membership.RoleOwner &&
-		authentication.Membership.Role !=
-			membership.RoleAdmin {
-		httpresponse.Error(
-			w,
-			http.StatusForbidden,
-			"insufficient_permission",
-			"owner or admin access is required",
 		)
 		return
 	}
@@ -163,6 +151,7 @@ func (h *InvitationHandler) CreateInvitation(
 //	@Tags			Invitations
 //	@Accept			json
 //	@Produce		json
+//	@Security		CookieAuth
 //	@Param			request	body		AcceptInvitationRequest	true	"Invitation token"
 //	@Success		200		{object}	membership.Membership
 //	@Failure		400		{object}	httpresponse.ErrorResponse

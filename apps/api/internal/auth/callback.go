@@ -1,21 +1,3 @@
-// Callback completes the OpenID Connect authorization flow.
-//
-//	@Summary		Complete OIDC login
-//	@Description	Validates the Keycloak response, creates a session cookie, and redirects to the frontend.
-//	@Tags			Authentication
-//	@Produce		json
-//	@Param			code				query		string	false	"OIDC authorization code"
-//	@Param			state				query		string	false	"One-time OIDC state value"
-//	@Param			error				query		string	false	"OIDC provider error code"
-//	@Param			error_description	query		string	false	"OIDC provider error description"
-//	@Success		303				{string}	string	"Session cookie set and browser redirected to the frontend"
-//	@Failure		400				{object}	SwaggerErrorResponse
-//	@Failure		401				{object}	SwaggerErrorResponse
-//	@Failure		401				{object}	SwaggerErrorResponse
-//	@Failure		403				{object}	SwaggerErrorResponse
-//	@Failure		503				{object}	SwaggerErrorResponse
-//	@Failure		500				{object}	SwaggerErrorResponse
-//	@Router			/auth/callback [get]
 package auth
 
 import (
@@ -34,6 +16,23 @@ import (
 	"github.com/rajipupreti/crm-platform/apps/api/internal/user"
 )
 
+// Callback completes the OpenID Connect authorization flow.
+//
+//	@Summary		Complete OIDC login
+//	@Description	Validates the Keycloak response, creates a session cookie, and redirects to the frontend.
+//	@Tags			Authentication
+//	@Produce		json
+//	@Param			code				query		string	false	"OIDC authorization code"
+//	@Param			state				query		string	false	"One-time OIDC state value"
+//	@Param			error				query		string	false	"OIDC provider error code"
+//	@Param			error_description	query		string	false	"OIDC provider error description"
+//	@Success		303				{string}	string	"Session cookie set and browser redirected to the frontend"
+//	@Failure		400				{object}	SwaggerErrorResponse
+//	@Failure		401				{object}	SwaggerErrorResponse
+//	@Failure		403				{object}	SwaggerErrorResponse
+//	@Failure		500				{object}	SwaggerErrorResponse
+//	@Failure		503				{object}	SwaggerErrorResponse
+//	@Router			/auth/callback [get]
 func (h *Handler) Callback(
 	w http.ResponseWriter,
 	r *http.Request,

@@ -1,3 +1,10 @@
+// @Description Requires the member.invite permission in the current tenant.
+// CreateInvitation creates a pending tenant invitation.
+//
+//	@Summary		Create tenant invitation
+//	@Description	Invites a user to the current tenant.
+//	@Description	Requires the member.invite permission in the current tenant.
+//	@Tags			Invitations
 package invitation
 
 import (

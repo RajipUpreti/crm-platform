@@ -38,6 +38,7 @@ type TenantListResponse struct {
 //	@Description	Returns active tenant memberships for the authenticated user.
 //	@Tags			Tenants
 //	@Produce		json
+//	@Security		CookieAuth
 //	@Success		200	{object}	TenantListResponse
 //	@Failure		401	{object}	httpresponse.ErrorResponse
 //	@Failure		500	{object}	httpresponse.ErrorResponse

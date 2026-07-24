@@ -48,6 +48,7 @@ import (
 	"github.com/rajipupreti/crm-platform/apps/api/internal/auth"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/config"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/database"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/authorization"
 	iamhttp "github.com/rajipupreti/crm-platform/apps/api/internal/iam/http"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/invitation"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/membership"
@@ -180,7 +181,17 @@ func run() error {
 			err,
 		)
 	}
+	authorizationService := authorization.NewService()
 
+	authorizationGuard, err := iamhttp.NewAuthorizationGuard(
+		authorizationService,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"create authorization guard: %w",
+			err,
+		)
+	}
 	/*
 		Onboarding domain
 	*/
@@ -452,6 +463,7 @@ func run() error {
 		oidcClient,
 		authHandler,
 		authenticationMiddleware,
+		authorizationGuard,
 		tenantHandler,
 		invitationHandler,
 		tenantSwitchHandler,

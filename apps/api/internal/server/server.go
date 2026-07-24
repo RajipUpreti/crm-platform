@@ -9,16 +9,17 @@ import (
 	"github.com/rajipupreti/crm-platform/apps/api/internal/auth"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/httpresponse"
 	iamhttp "github.com/rajipupreti/crm-platform/apps/api/internal/iam/http"
+	"github.com/rajipupreti/crm-platform/apps/api/internal/iam/permission"
 	"github.com/rajipupreti/crm-platform/apps/api/internal/middleware"
 )
 
 type Server struct {
 	httpServer *http.Server
 
-	oidcClient     *auth.OIDCClient
-	authHandler    *auth.Handler
-	authMiddleware *middleware.AuthenticationMiddleware
-
+	oidcClient          *auth.OIDCClient
+	authHandler         *auth.Handler
+	authMiddleware      *middleware.AuthenticationMiddleware
+	authorizationGuard  *iamhttp.AuthorizationGuard
 	tenantHandler       *iamhttp.TenantHandler
 	invitationHandler   *iamhttp.InvitationHandler
 	tenantSwitchHandler *iamhttp.TenantSwitchHandler
@@ -29,6 +30,7 @@ func New(
 	oidcClient *auth.OIDCClient,
 	authHandler *auth.Handler,
 	authMiddleware *middleware.AuthenticationMiddleware,
+	authorizationGuard *iamhttp.AuthorizationGuard,
 	tenantHandler *iamhttp.TenantHandler,
 	invitationHandler *iamhttp.InvitationHandler,
 	tenantSwitchHandler *iamhttp.TenantSwitchHandler,
@@ -107,10 +109,14 @@ func (s *Server) registerIAMRoutes(
 	mux *http.ServeMux,
 ) {
 	mux.Handle(
-		"GET /api/v1/tenants",
+		"POST /api/v1/tenant/invitations",
 		s.authMiddleware.Require(
-			http.HandlerFunc(
-				s.tenantHandler.ListTenants,
+			s.authorizationGuard.Require(
+				permission.MemberInvite,
+				http.HandlerFunc(
+					s.invitationHandler.
+						CreateInvitation,
+				),
 			),
 		),
 	)
