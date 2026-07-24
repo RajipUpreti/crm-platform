@@ -22,4 +22,16 @@ var (
 	ErrInactive = errors.New(
 		"membership is inactive",
 	)
+
+	ErrForbidden = errors.New(
+		"membership modification is forbidden",
+	)
+
+	ErrLastOwner = errors.New(
+		"the final active owner cannot be modified",
+	)
+
+	ErrSelfModification = errors.New(
+		"members cannot modify themselves through the administration API",
+	)
 )

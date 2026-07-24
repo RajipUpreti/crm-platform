@@ -21,6 +21,7 @@ type Server struct {
 	authMiddleware      *middleware.AuthenticationMiddleware
 	authorizationGuard  *iamhttp.AuthorizationGuard
 	tenantHandler       *iamhttp.TenantHandler
+	membershipHandler   *iamhttp.MembershipHandler
 	invitationHandler   *iamhttp.InvitationHandler
 	tenantSwitchHandler *iamhttp.TenantSwitchHandler
 }
@@ -32,6 +33,7 @@ func New(
 	authMiddleware *middleware.AuthenticationMiddleware,
 	authorizationGuard *iamhttp.AuthorizationGuard,
 	tenantHandler *iamhttp.TenantHandler,
+	membershipHandler *iamhttp.MembershipHandler,
 	invitationHandler *iamhttp.InvitationHandler,
 	tenantSwitchHandler *iamhttp.TenantSwitchHandler,
 ) *Server {
@@ -41,6 +43,7 @@ func New(
 		authMiddleware:      authMiddleware,
 		authorizationGuard:  authorizationGuard,
 		tenantHandler:       tenantHandler,
+		membershipHandler:   membershipHandler,
 		invitationHandler:   invitationHandler,
 		tenantSwitchHandler: tenantSwitchHandler,
 	}
@@ -145,6 +148,54 @@ func (s *Server) registerIAMRoutes(
 		s.authMiddleware.Require(
 			http.HandlerFunc(
 				s.invitationHandler.AcceptInvitation,
+			),
+		),
+	)
+
+	mux.Handle(
+		"GET /api/v1/members",
+		s.authMiddleware.Require(
+			s.authorizationGuard.Require(
+				permission.MemberRead,
+				http.HandlerFunc(
+					s.membershipHandler.ListMembers,
+				),
+			),
+		),
+	)
+
+	mux.Handle(
+		"PATCH /api/v1/members/{membershipId}/role",
+		s.authMiddleware.Require(
+			s.authorizationGuard.Require(
+				permission.MemberUpdateRole,
+				http.HandlerFunc(
+					s.membershipHandler.UpdateMemberRole,
+				),
+			),
+		),
+	)
+
+	mux.Handle(
+		"PATCH /api/v1/members/{membershipId}/status",
+		s.authMiddleware.Require(
+			s.authorizationGuard.Require(
+				permission.MemberSuspend,
+				http.HandlerFunc(
+					s.membershipHandler.UpdateMemberStatus,
+				),
+			),
+		),
+	)
+
+	mux.Handle(
+		"DELETE /api/v1/members/{membershipId}",
+		s.authMiddleware.Require(
+			s.authorizationGuard.Require(
+				permission.MemberRemove,
+				http.HandlerFunc(
+					s.membershipHandler.RemoveMember,
+				),
 			),
 		),
 	)

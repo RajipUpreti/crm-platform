@@ -103,6 +103,280 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/members": {
+            "get": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Returns membership and user details for members of the current tenant.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "List tenant members",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/iamhttp.MemberListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/members/{membershipId}": {
+            "delete": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Marks a membership as LEFT while enforcing tenant, self-removal, hierarchy, and ownership rules.",
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Remove tenant member",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Membership ID",
+                        "name": "membershipId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/members/{membershipId}/role": {
+            "patch": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Changes a membership role to ADMIN or MEMBER while enforcing tenant and ownership rules.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Change member role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Membership ID",
+                        "name": "membershipId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New membership role",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/iamhttp.UpdateMemberRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/membership.Membership"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/members/{membershipId}/status": {
+            "patch": {
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "description": "Suspends or reactivates a membership while enforcing tenant and ownership rules.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Members"
+                ],
+                "summary": "Change member status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Membership ID",
+                        "name": "membershipId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New membership status",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/iamhttp.UpdateMemberStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/membership.Membership"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpresponse.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/tenant/invitations": {
             "post": {
                 "security": [
@@ -603,6 +877,17 @@ const docTemplate = `{
                 }
             }
         },
+        "iamhttp.MemberListResponse": {
+            "type": "object",
+            "properties": {
+                "members": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/membership.Member"
+                    }
+                }
+            }
+        },
         "iamhttp.TenantListResponse": {
             "type": "object",
             "properties": {
@@ -622,6 +907,38 @@ const docTemplate = `{
                 },
                 "tenant": {
                     "$ref": "#/definitions/tenant.Tenant"
+                }
+            }
+        },
+        "iamhttp.UpdateMemberRoleRequest": {
+            "type": "object",
+            "properties": {
+                "role": {
+                    "enum": [
+                        "ADMIN",
+                        "MEMBER"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/membership.Role"
+                        }
+                    ]
+                }
+            }
+        },
+        "iamhttp.UpdateMemberStatusRequest": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "enum": [
+                        "ACTIVE",
+                        "SUSPENDED"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/membership.Status"
+                        }
+                    ]
                 }
             }
         },
@@ -707,6 +1024,82 @@ const docTemplate = `{
                 "StatusRevoked",
                 "StatusExpired"
             ]
+        },
+        "membership.DetailedMembership": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "joinedAt": {
+                    "type": "string"
+                },
+                "role": {
+                    "enum": [
+                        "OWNER",
+                        "ADMIN",
+                        "MEMBER"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/membership.Role"
+                        }
+                    ]
+                },
+                "status": {
+                    "enum": [
+                        "ACTIVE",
+                        "INVITED",
+                        "SUSPENDED",
+                        "LEFT"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/membership.Status"
+                        }
+                    ]
+                }
+            }
+        },
+        "membership.DetailedUser": {
+            "type": "object",
+            "properties": {
+                "displayName": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "enum": [
+                        "ACTIVE",
+                        "SUSPENDED",
+                        "DELETED"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/user.Status"
+                        }
+                    ]
+                }
+            }
+        },
+        "membership.Member": {
+            "type": "object",
+            "properties": {
+                "membership": {
+                    "$ref": "#/definitions/membership.DetailedMembership"
+                },
+                "user": {
+                    "$ref": "#/definitions/membership.DetailedUser"
+                }
+            }
         },
         "membership.Membership": {
             "type": "object",

@@ -29,15 +29,32 @@ type Repository interface {
 		userID string,
 	) ([]Membership, error)
 
-	UpdateRole(
+	ListDetailedByTenantID(
+		ctx context.Context,
+		tenantID string,
+	) ([]Member, error)
+
+	FindDetailedByID(
 		ctx context.Context,
 		id string,
+	) (Member, error)
+
+	CountActiveOwners(
+		ctx context.Context,
+		tenantID string,
+	) (int, error)
+
+	UpdateRoleForTenant(
+		ctx context.Context,
+		id string,
+		tenantID string,
 		role Role,
 	) (Membership, error)
 
-	UpdateStatus(
+	UpdateStatusForTenant(
 		ctx context.Context,
 		id string,
+		tenantID string,
 		status Status,
 	) (Membership, error)
 }

@@ -226,17 +226,150 @@ func (r *PostgresRepository) ListByUserID(
 	)
 }
 
-func (r *PostgresRepository) UpdateRole(
+func (r *PostgresRepository) ListDetailedByTenantID(
+	ctx context.Context,
+	tenantID string,
+) ([]Member, error) {
+	const query = `
+		SELECT
+			m.id::text,
+			m.tenant_id::text,
+			m.user_id::text,
+			m.role,
+			m.status,
+			m.joined_at,
+			u.id::text,
+			u.email,
+			COALESCE(u.display_name, ''),
+			u.status
+		FROM memberships m
+		JOIN users u ON u.id = m.user_id
+		WHERE m.tenant_id = $1
+		  AND m.status <> 'LEFT'
+		ORDER BY
+			CASE m.role
+				WHEN 'OWNER' THEN 1
+				WHEN 'ADMIN' THEN 2
+				ELSE 3
+			END,
+			LOWER(u.display_name) NULLS LAST,
+			LOWER(u.email),
+			m.id
+	`
+
+	rows, err := r.pool.Query(
+		ctx,
+		query,
+		tenantID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"list detailed memberships: %w",
+			err,
+		)
+	}
+	defer rows.Close()
+
+	members := make([]Member, 0)
+	for rows.Next() {
+		foundMember, err := scanMember(rows)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"scan detailed membership: %w",
+				err,
+			)
+		}
+
+		members = append(members, foundMember)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf(
+			"iterate detailed memberships: %w",
+			err,
+		)
+	}
+
+	return members, nil
+}
+
+func (r *PostgresRepository) FindDetailedByID(
 	ctx context.Context,
 	id string,
+) (Member, error) {
+	const query = `
+		SELECT
+			m.id::text,
+			m.tenant_id::text,
+			m.user_id::text,
+			m.role,
+			m.status,
+			m.joined_at,
+			u.id::text,
+			u.email,
+			COALESCE(u.display_name, ''),
+			u.status
+		FROM memberships m
+		JOIN users u ON u.id = m.user_id
+		WHERE m.id = $1
+	`
+
+	foundMember, err := scanMember(
+		r.pool.QueryRow(ctx, query, id),
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Member{}, ErrNotFound
+	}
+	if err != nil {
+		return Member{}, fmt.Errorf(
+			"find detailed membership: %w",
+			err,
+		)
+	}
+
+	return foundMember, nil
+}
+
+func (r *PostgresRepository) CountActiveOwners(
+	ctx context.Context,
+	tenantID string,
+) (int, error) {
+	const query = `
+		SELECT COUNT(*)
+		FROM memberships
+		WHERE tenant_id = $1
+		  AND role = 'OWNER'
+		  AND status = 'ACTIVE'
+	`
+
+	var count int
+	if err := r.pool.QueryRow(
+		ctx,
+		query,
+		tenantID,
+	).Scan(&count); err != nil {
+		return 0, fmt.Errorf(
+			"count active owners: %w",
+			err,
+		)
+	}
+
+	return count, nil
+}
+
+func (r *PostgresRepository) UpdateRoleForTenant(
+	ctx context.Context,
+	id string,
+	tenantID string,
 	role Role,
 ) (Membership, error) {
 	const query = `
 		UPDATE memberships
 		SET
-			role = $2,
+			role = $3,
 			updated_at = NOW()
 		WHERE id = $1
+		  AND tenant_id = $2
 		RETURNING
 			id::text,
 			tenant_id::text,
@@ -253,16 +386,16 @@ func (r *PostgresRepository) UpdateRole(
 			ctx,
 			query,
 			id,
+			tenantID,
 			role,
 		),
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Membership{}, ErrNotFound
 	}
-
 	if err != nil {
 		return Membership{}, fmt.Errorf(
-			"update membership role: %w",
+			"update tenant membership role: %w",
 			err,
 		)
 	}
@@ -270,25 +403,24 @@ func (r *PostgresRepository) UpdateRole(
 	return updatedMembership, nil
 }
 
-func (r *PostgresRepository) UpdateStatus(
+func (r *PostgresRepository) UpdateStatusForTenant(
 	ctx context.Context,
 	id string,
+	tenantID string,
 	status Status,
 ) (Membership, error) {
 	const query = `
 		UPDATE memberships
 		SET
-			status = $2,
+			status = $3,
 			joined_at = CASE
-				WHEN $2 = 'ACTIVE'
-					THEN COALESCE(
-						joined_at,
-						NOW()
-					)
+				WHEN $3 = 'ACTIVE'
+					THEN COALESCE(joined_at, NOW())
 				ELSE joined_at
 			END,
 			updated_at = NOW()
 		WHERE id = $1
+		  AND tenant_id = $2
 		RETURNING
 			id::text,
 			tenant_id::text,
@@ -305,16 +437,16 @@ func (r *PostgresRepository) UpdateStatus(
 			ctx,
 			query,
 			id,
+			tenantID,
 			status,
 		),
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Membership{}, ErrNotFound
 	}
-
 	if err != nil {
 		return Membership{}, fmt.Errorf(
-			"update membership status: %w",
+			"update tenant membership status: %w",
 			err,
 		)
 	}
@@ -391,6 +523,30 @@ func scanMembership(
 	}
 
 	return foundMembership, nil
+}
+
+func scanMember(
+	row rowScanner,
+) (Member, error) {
+	var foundMember Member
+
+	err := row.Scan(
+		&foundMember.Membership.ID,
+		&foundMember.Membership.TenantID,
+		&foundMember.Membership.UserID,
+		&foundMember.Membership.Role,
+		&foundMember.Membership.Status,
+		&foundMember.Membership.JoinedAt,
+		&foundMember.User.ID,
+		&foundMember.User.Email,
+		&foundMember.User.DisplayName,
+		&foundMember.User.Status,
+	)
+	if err != nil {
+		return Member{}, err
+	}
+
+	return foundMember, nil
 }
 
 func isConstraintViolation(

@@ -30,6 +30,9 @@
 //
 //	@tag.name					Invitations
 //	@tag.description			Tenant invitation creation and acceptance.
+//
+//	@tag.name					Members
+//	@tag.description			Tenant member listing, role administration, suspension, and removal.
 package main
 
 import (
@@ -433,6 +436,16 @@ func run() error {
 		)
 	}
 
+	membershipHandler, err := iamhttp.NewMembershipHandler(
+		membershipService,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"create membership HTTP handler: %w",
+			err,
+		)
+	}
+
 	invitationHandler, err := iamhttp.NewInvitationHandler(
 		invitationService,
 	)
@@ -465,6 +478,7 @@ func run() error {
 		authenticationMiddleware,
 		authorizationGuard,
 		tenantHandler,
+		membershipHandler,
 		invitationHandler,
 		tenantSwitchHandler,
 	)

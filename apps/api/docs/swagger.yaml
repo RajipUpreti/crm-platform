@@ -76,6 +76,13 @@ definitions:
         - ADMIN
         - MEMBER
     type: object
+  iamhttp.MemberListResponse:
+    properties:
+      members:
+        items:
+          $ref: '#/definitions/membership.Member'
+        type: array
+    type: object
   iamhttp.TenantListResponse:
     properties:
       tenants:
@@ -89,6 +96,24 @@ definitions:
         $ref: '#/definitions/membership.Membership'
       tenant:
         $ref: '#/definitions/tenant.Tenant'
+    type: object
+  iamhttp.UpdateMemberRoleRequest:
+    properties:
+      role:
+        allOf:
+        - $ref: '#/definitions/membership.Role'
+        enum:
+        - ADMIN
+        - MEMBER
+    type: object
+  iamhttp.UpdateMemberStatusRequest:
+    properties:
+      status:
+        allOf:
+        - $ref: '#/definitions/membership.Status'
+        enum:
+        - ACTIVE
+        - SUSPENDED
     type: object
   invitation.CreatedInvitation:
     properties:
@@ -146,6 +171,54 @@ definitions:
     - StatusAccepted
     - StatusRevoked
     - StatusExpired
+  membership.DetailedMembership:
+    properties:
+      id:
+        format: uuid
+        type: string
+      joinedAt:
+        type: string
+      role:
+        allOf:
+        - $ref: '#/definitions/membership.Role'
+        enum:
+        - OWNER
+        - ADMIN
+        - MEMBER
+      status:
+        allOf:
+        - $ref: '#/definitions/membership.Status'
+        enum:
+        - ACTIVE
+        - INVITED
+        - SUSPENDED
+        - LEFT
+    type: object
+  membership.DetailedUser:
+    properties:
+      displayName:
+        type: string
+      email:
+        format: email
+        type: string
+      id:
+        format: uuid
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/user.Status'
+        enum:
+        - ACTIVE
+        - SUSPENDED
+        - DELETED
+    type: object
+  membership.Member:
+    properties:
+      membership:
+        $ref: '#/definitions/membership.DetailedMembership'
+      user:
+        $ref: '#/definitions/membership.DetailedUser'
+    type: object
   membership.Membership:
     properties:
       createdAt:
@@ -357,6 +430,187 @@ paths:
       summary: Accept tenant invitation
       tags:
       - Invitations
+  /api/v1/members:
+    get:
+      description: Returns membership and user details for members of the current
+        tenant.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/iamhttp.MemberListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: List tenant members
+      tags:
+      - Members
+  /api/v1/members/{membershipId}:
+    delete:
+      description: Marks a membership as LEFT while enforcing tenant, self-removal,
+        hierarchy, and ownership rules.
+      parameters:
+      - description: Membership ID
+        format: uuid
+        in: path
+        name: membershipId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: Remove tenant member
+      tags:
+      - Members
+  /api/v1/members/{membershipId}/role:
+    patch:
+      consumes:
+      - application/json
+      description: Changes a membership role to ADMIN or MEMBER while enforcing tenant
+        and ownership rules.
+      parameters:
+      - description: Membership ID
+        format: uuid
+        in: path
+        name: membershipId
+        required: true
+        type: string
+      - description: New membership role
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/iamhttp.UpdateMemberRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/membership.Membership'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: Change member role
+      tags:
+      - Members
+  /api/v1/members/{membershipId}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Suspends or reactivates a membership while enforcing tenant and
+        ownership rules.
+      parameters:
+      - description: Membership ID
+        format: uuid
+        in: path
+        name: membershipId
+        required: true
+        type: string
+      - description: New membership status
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/iamhttp.UpdateMemberStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/membership.Membership'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpresponse.ErrorResponse'
+      security:
+      - CookieAuth: []
+      summary: Change member status
+      tags:
+      - Members
   /api/v1/tenant/invitations:
     post:
       consumes:
